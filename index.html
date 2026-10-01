@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16302b">
+<title>The Hunt</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦊</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --wald: #16302b;
+    --moos: #2f6b4f;
+    --papier: #eef1ea;
+    --signal: #e0482f;
+    --zone: #2563eb;
+    --text: #16302b;
+    --grau: #6b7a73;
+    --font: "Bricolage Grotesque", system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--wald); color: var(--text); font-family: var(--font); }
+  button, input { font-family: inherit; font-size: 17px; }
+  button { cursor: pointer; border: 0; }
+  button:focus-visible, input:focus-visible { outline: 3px solid var(--signal); outline-offset: 2px; }
+
+  /* ---------- Startbildschirm ---------- */
+  #start {
+    min-height: 100%;
+    padding: calc(env(safe-area-inset-top, 0px) + 48px) 24px calc(env(safe-area-inset-bottom, 0px) + 24px);
+    color: var(--papier);
+    display: flex; flex-direction: column; gap: 28px;
+    max-width: 480px; margin: 0 auto;
+  }
+  #start h1 {
+    font-size: clamp(56px, 18vw, 88px); line-height: .9; margin: 0;
+    font-weight: 800; letter-spacing: -0.03em;
+  }
+  #start h1 span { display: block; color: var(--signal); }
+  #start p.lead { margin: 0; color: #b9c7bf; font-size: 18px; line-height: 1.45; max-width: 34ch; }
+  .feld { display: flex; flex-direction: column; gap: 8px; }
+  .feld label { font-size: 15px; color: #b9c7bf; }
+  .feld input {
+    background: #21423b; color: var(--papier); border: 2px solid #2f5a50;
+    border-radius: 14px; padding: 14px 16px; width: 100%;
+  }
+  .rollen { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .rolle {
+    background: #21423b; color: var(--papier); border: 2px solid #2f5a50;
+    border-radius: 14px; padding: 16px 12px; text-align: left; line-height: 1.25;
+  }
+  .rolle b { display: block; font-size: 20px; margin-bottom: 4px; }
+  .rolle small { color: #b9c7bf; font-size: 14px; }
+  .rolle[aria-pressed="true"] { border-color: var(--signal); background: #2c2a24; }
+  #los {
+    background: var(--signal); color: white; font-weight: 800; font-size: 20px;
+    padding: 18px; border-radius: 16px; margin-top: 4px;
+  }
+  #startFehler { color: #ffb4a6; min-height: 1.2em; margin: -12px 0 0; font-size: 15px; }
+
+  /* ---------- Spielbildschirm ---------- */
+  #spiel { display: none; height: 100%; position: relative; }
+  #map { position: absolute; inset: 0; background: #dfe3dc; }
+  #panel {
+    position: absolute; left: 10px; right: 10px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+    background: var(--papier); border-radius: 22px;
+    padding: 14px; z-index: 1000;
+    box-shadow: 0 10px 30px rgba(22, 48, 43, .35);
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  #kopf { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  #wer { font-weight: 800; font-size: 20px; }
+  #uhr { font-weight: 800; font-size: 28px; font-variant-numeric: tabular-nums; color: var(--signal); }
+  #infos { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 15px; color: var(--grau); }
+  #infos .warn { color: var(--signal); font-weight: 700; }
+  #infos .ok { color: var(--moos); font-weight: 700; }
+  .knoepfe { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .knoepfe button {
+    padding: 14px 6px; border-radius: 14px; font-weight: 700; font-size: 15px; color: white;
+  }
+  #bZone { background: var(--zone); }
+  #bZone.aktiv { background: var(--moos); }
+  #bLoeschen { background: #6b7a73; }
+  #bAktion { background: var(--signal); }
+  #hinweis {
+    position: absolute; top: calc(env(safe-area-inset-top, 0px) + 12px); left: 50%;
+    transform: translateX(-50%); z-index: 1000;
+    background: var(--wald); color: var(--papier); padding: 10px 16px; border-radius: 999px;
+    font-size: 15px; display: none; white-space: nowrap;
+  }
+  .leaflet-tooltip.name {
+    background: var(--wald); color: var(--papier); border: 0; border-radius: 8px;
+    font-family: var(--font); font-weight: 700; padding: 3px 8px; box-shadow: none;
+  }
+  .leaflet-tooltip.name::before { display: none; }
+  .leaflet-top { top: env(safe-area-inset-top, 0px); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+
+<!-- Startbildschirm -->
+<main id="start">
+  <h1>The<span>Hunt</span></h1>
+  <p class="lead">Einer flieht, alle anderen jagen. Gebt alle denselben Spielcode ein, um im selben Spiel zu landen.</p>
+
+  <div class="feld">
+    <label for="name">Dein Name</label>
+    <input id="name" autocomplete="nickname" placeholder="z. B. Lena" maxlength="20">
+  </div>
+
+  <div class="feld">
+    <label for="code">Spielcode</label>
+    <input id="code" autocapitalize="none" autocorrect="off" placeholder="z. B. jagd1" maxlength="30">
+  </div>
+
+  <div class="feld">
+    <label>Deine Rolle</label>
+    <div class="rollen">
+      <button class="rolle" data-rolle="jaeger" aria-pressed="true"><b>🔎 Jäger</b><small>Siehst die Pings von Mister X</small></button>
+      <button class="rolle" data-rolle="misterx" aria-pressed="false"><b>🦊 Mister X</b><small>Deine Position wird regelmäßig verraten</small></button>
+    </div>
+  </div>
+
+  <p id="startFehler" role="alert"></p>
+  <button id="los">Spiel beitreten</button>
+</main>
+
+<!-- Spielbildschirm -->
+<section id="spiel">
+  <div id="map"></div>
+  <div id="hinweis">Tippe Punkte auf die Karte</div>
+  <div id="panel">
+    <div id="kopf">
+      <span id="wer"></span>
+      <span id="uhr">–</span>
+    </div>
+    <div id="infos"></div>
+    <div class="knoepfe">
+      <button id="bZone">Zone zeichnen</button>
+      <button id="bLoeschen">Zone löschen</button>
+      <button id="bAktion"></button>
+    </div>
+  </div>
+</section>
+
+<script>
+// ---------- Einstellungen ----------
+const SUPABASE_URL = 'https://pgrjysyyubkhykwjsath.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_d8Uxjl4pCXvfooQFijRBuw_UY6QfKE1';
+const PING_INTERVALL = 60;   // Sekunden zwischen zwei Pings von Mister X
+const SYNC_INTERVALL = 4;    // Sekunden zwischen zwei Abgleichen mit dem Server
+const JAEGER_TIMEOUT = 120;  // Jäger ohne Update seit so vielen Sekunden gelten als offline
+const X_SIEHT_JAEGER = true;
+
+// ---------- Server ----------
+const HEADERS = { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' };
+
+async function dbGet(tabelle, params) {
+  const url = SUPABASE_URL + '/rest/v1/' + tabelle + '?' + new URLSearchParams(params);
+  const r = await fetch(url, { headers: HEADERS });
+  if (!r.ok) throw new Error(tabelle + ': ' + r.status);
+  return r.json();
+}
+async function dbInsert(tabelle, daten) {
+  const r = await fetch(SUPABASE_URL + '/rest/v1/' + tabelle, { method: 'POST', headers: HEADERS, body: JSON.stringify(daten) });
+  if (!r.ok) throw new Error(tabelle + ': ' + r.status);
+}
+async function dbUpsert(tabelle, daten) {
+  const r = await fetch(SUPABASE_URL + '/rest/v1/' + tabelle, {
+    method: 'POST', headers: { ...HEADERS, Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify(daten)
+  });
+  if (!r.ok) throw new Error(tabelle + ': ' + r.status);
+}
+const isoVor = (sek = 0) => new Date(Date.now() - sek * 1000).toISOString();
+const uhrzeit = (d) => d.toLocaleTimeString('de-DE');
+
+function punktInPolygon([y, x], poly) {
+  let drin = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [yi, xi] = poly[i], [yj, xj] = poly[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) drin = !drin;
+  }
+  return drin;
+}
+
+// ---------- Zustand ----------
+const s = {
+  name: '', spiel: '', istX: false,
+  position: null, zentriert: false,
+  zone: [], zeichnen: false, zoneSperreBis: 0,
+  countdown: PING_INTERVALL,
+  letzterPingId: null, letzterPingZeit: null,
+  anzahlJaeger: 0, online: true, gpsFehler: null
+};
+
+// ---------- Startbildschirm ----------
+let gewaehlteRolle = 'jaeger';
+document.querySelectorAll('.rolle').forEach(b => b.addEventListener('click', () => {
+  gewaehlteRolle = b.dataset.rolle;
+  document.querySelectorAll('.rolle').forEach(x => x.setAttribute('aria-pressed', x === b));
+}));
+
+try {
+  document.getElementById('name').value = localStorage.getItem('hunt-name') || '';
+  document.getElementById('code').value = localStorage.getItem('hunt-code') || '';
+} catch (e) {}
+
+document.getElementById('los').addEventListener('click', () => {
+  const name = document.getElementById('name').value.trim();
+  const code = document.getElementById('code').value.trim().toLowerCase();
+  const fehler = document.getElementById('startFehler');
+  if (!code) { fehler.textContent = 'Gib einen Spielcode ein.'; return; }
+  if (gewaehlteRolle === 'jaeger' && !name) { fehler.textContent = 'Gib deinen Namen ein, damit die anderen dich erkennen.'; return; }
+  if (!navigator.geolocation) { fehler.textContent = 'Dieser Browser kann keinen Standort liefern.'; return; }
+  try { localStorage.setItem('hunt-name', name); localStorage.setItem('hunt-code', code); } catch (e) {}
+
+  s.istX = gewaehlteRolle === 'misterx';
+  s.name = s.istX ? 'Mister X' : name;
+  s.spiel = code;
+  spielStarten();
+});
+
+// ---------- Karte ----------
+let map, ich, pingKreis, pingPunkt, zoneLayer, jaegerLayer;
+
+function karteAufbauen() {
+  map = L.map('map', { zoomControl: true }).setView([51.3127, 9.4797], 14);
+  L.tileLayer('https://tile.openstreetmap.de/{z}/{x}/{y}.png', {
+    maxZoom: 19, attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
+  zoneLayer = L.layerGroup().addTo(map);
+  jaegerLayer = L.layerGroup().addTo(map);
+  map.on('click', (e) => {
+    if (!s.zeichnen) return;
+    s.zone.push([e.latlng.lat, e.latlng.lng]);
+    zoneZeichnen();
+  });
+  setTimeout(() => map.invalidateSize(), 300);
+  window.addEventListener('resize', () => map.invalidateSize());
+}
+
+function zoneZeichnen() {
+  zoneLayer.clearLayers();
+  if (s.zone.length >= 3) {
+    L.polygon(s.zone, { color: '#2563eb', weight: 3, fillOpacity: 0.12 }).addTo(zoneLayer);
+  } else {
+    s.zone.forEach(p => L.circleMarker(p, { radius: 6, color: '#2563eb' }).addTo(zoneLayer));
+  }
+}
+
+function pingZeigen(lat, lng, zeit) {
+  if (pingKreis) { map.removeLayer(pingKreis); map.removeLayer(pingPunkt); }
+  pingKreis = L.circle([lat, lng], { radius: 100, color: '#e0482f', weight: 3, fillOpacity: 0.18 }).addTo(map);
+  pingPunkt = L.circleMarker([lat, lng], { radius: 9, color: '#fff', weight: 3, fillColor: '#e0482f', fillOpacity: 1 })
+    .bindTooltip('🦊 ' + zeit, { permanent: true, direction: 'top', offset: [0, -10], className: 'name' })
+    .addTo(map);
+}
+
+function jaegerZeigen(liste) {
+  jaegerLayer.clearLayers();
+  liste.forEach(j => {
+    L.circleMarker([j.lat, j.lng], { radius: 8, color: '#fff', weight: 3, fillColor: '#2f6b4f', fillOpacity: 1 })
+      .bindTooltip(j.name, { permanent: true, direction: 'top', offset: [0, -8], className: 'name' })
+      .addTo(jaegerLayer);
+  });
+}
+
+// ---------- GPS ----------
+function gpsStarten() {
+  navigator.geolocation.watchPosition((pos) => {
+    s.gpsFehler = null;
+    s.position = [pos.coords.latitude, pos.coords.longitude];
+    if (!ich) {
+      ich = L.circleMarker(s.position, { radius: 9, color: '#fff', weight: 3, fillColor: '#2563eb', fillOpacity: 1 }).addTo(map);
+    } else {
+      ich.setLatLng(s.position);
+    }
+    ich.bringToFront();
+    if (!s.zentriert) { map.setView(s.position, 16); s.zentriert = true; }
+  }, (err) => {
+    s.gpsFehler = err.code === 1
+      ? 'Standort blockiert – in den Browser-Einstellungen erlauben'
+      : 'Kein GPS-Signal';
+  }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
+}
+
+// Bildschirm wach halten, sonst stoppt das GPS
+let wakeLock = null;
+async function wachHalten() {
+  try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') wachHalten();
+});
+
+// ---------- Mister X: pingen ----------
+async function pingen() {
+  s.countdown = PING_INTERVALL;
+  if (!s.position) return;
+  const [lat, lng] = s.position;
+  pingZeigen(lat, lng, uhrzeit(new Date()));
+  try { await dbInsert('pings', { spiel: s.spiel, lat, lng }); }
+  catch (e) { console.warn('Ping nicht gesendet', e); s.online = false; }
+}
+
+// ---------- Abgleich mit dem Server ----------
+async function sync() {
+  try {
+    if (!s.istX && s.position) {
+      const [lat, lng] = s.position;
+      await dbUpsert('spieler', { spiel: s.spiel, name: s.name, rolle: 'jaeger', lat, lng, aktualisiert: isoVor(0) });
+    }
+
+    const jaeger = await dbGet('spieler', {
+      spiel: 'eq.' + s.spiel, rolle: 'eq.jaeger',
+      aktualisiert: 'gte.' + isoVor(JAEGER_TIMEOUT), select: 'name,lat,lng'
+    });
+    s.anzahlJaeger = jaeger.length;
+    if (!s.istX || X_SIEHT_JAEGER) jaegerZeigen(jaeger.filter(j => j.name !== s.name));
+
+    const pings = await dbGet('pings', {
+      spiel: 'eq.' + s.spiel, order: 'erstellt.desc', limit: 1, select: 'id,lat,lng,erstellt'
+    });
+    if (pings.length && pings[0].id !== s.letzterPingId) {
+      const p = pings[0];
+      s.letzterPingId = p.id;
+      s.letzterPingZeit = new Date(p.erstellt);
+      pingZeigen(p.lat, p.lng, uhrzeit(s.letzterPingZeit));
+    }
+
+    if (!s.zeichnen && Date.now() > s.zoneSperreBis) {
+      const spiele = await dbGet('spiele', { code: 'eq.' + s.spiel, select: 'zone' });
+      if (spiele.length) {
+        const zone = spiele[0].zone || [];
+        if (JSON.stringify(zone) !== JSON.stringify(s.zone)) { s.zone = zone; zoneZeichnen(); }
+      }
+    }
+    s.online = true;
+  } catch (e) {
+    console.warn('Sync-Fehler', e);
+    s.online = false;
+  }
+}
+
+async function zoneHochladen() {
+  s.zoneSperreBis = Date.now() + 8000;
+  try { await dbUpsert('spiele', { code: s.spiel, zone: s.zone }); }
+  catch (e) { console.warn('Zone nicht gespeichert', e); s.online = false; }
+}
+
+// ---------- Anzeige, jede Sekunde ----------
+function tick() {
+  if (s.istX) {
+    s.countdown -= 1;
+    if (s.countdown <= 0) pingen();
+    document.getElementById('uhr').textContent = s.countdown + ' s';
+  } else if (s.letzterPingZeit) {
+    const sek = Math.floor((Date.now() - s.letzterPingZeit) / 1000);
+    document.getElementById('uhr').textContent = sek < 60 ? 'vor ' + sek + ' s' : 'vor ' + Math.floor(sek / 60) + ' min';
+  }
+
+  const infos = [];
+  infos.push(s.istX ? 'Nächster Ping deiner Position' : (s.letzterPingZeit ? 'Letzter Ping ' + uhrzeit(s.letzterPingZeit) : 'Noch kein Ping'));
+  infos.push(s.anzahlJaeger === 1 ? '1 Jäger online' : s.anzahlJaeger + ' Jäger online');
+  let html = infos.map(t => '<span>' + t + '</span>').join('');
+  if (s.position && s.zone.length >= 3) {
+    html += punktInPolygon(s.position, s.zone)
+      ? '<span class="ok">In der Zone</span>'
+      : '<span class="warn">Außerhalb der Zone</span>';
+  }
+  if (s.gpsFehler) html += '<span class="warn">' + s.gpsFehler + '</span>';
+  else if (!s.position) html += '<span>Suche GPS-Signal…</span>';
+  if (!s.online) html += '<span class="warn">Keine Verbindung zum Server</span>';
+  document.getElementById('infos').innerHTML = html;
+}
+
+// ---------- Knöpfe ----------
+function knoepfeVerbinden() {
+  const bZone = document.getElementById('bZone');
+  const hinweis = document.getElementById('hinweis');
+
+  bZone.addEventListener('click', () => {
+    s.zeichnen = !s.zeichnen;
+    bZone.textContent = s.zeichnen ? 'Zone fertig' : 'Zone zeichnen';
+    bZone.classList.toggle('aktiv', s.zeichnen);
+    hinweis.style.display = s.zeichnen ? 'block' : 'none';
+    if (s.zeichnen) { s.zone = []; zoneZeichnen(); }
+    else if (s.zone.length >= 3) zoneHochladen();
+  });
+
+  document.getElementById('bLoeschen').addEventListener('click', () => {
+    s.zone = []; zoneZeichnen(); zoneHochladen();
+  });
+
+  const bAktion = document.getElementById('bAktion');
+  if (s.istX) {
+    bAktion.textContent = 'Ping jetzt';
+    bAktion.addEventListener('click', pingen);
+  } else {
+    bAktion.textContent = 'Auf mich';
+    bAktion.addEventListener('click', () => { if (s.position) map.setView(s.position, map.getZoom()); });
+  }
+}
+
+// ---------- Spiel starten ----------
+function spielStarten() {
+  document.getElementById('start').style.display = 'none';
+  document.getElementById('spiel').style.display = 'block';
+  document.getElementById('wer').textContent = (s.istX ? '🦊 ' : '🔎 ') + s.name + ' · ' + s.spiel;
+  karteAufbauen();
+  knoepfeVerbinden();
+  gpsStarten();
+  wachHalten();
+  sync();
+  setInterval(sync, SYNC_INTERVALL * 1000);
+  setInterval(tick, 1000);
+  tick();
+}
+</script>
+</body>
+</html>
