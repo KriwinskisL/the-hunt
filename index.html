@@ -4,21 +4,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#16302b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="The Hunt">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
 <title>The Hunt</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦊</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌑</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
   :root {
-    --wald: #16302b;
-    --moos: #2f6b4f;
-    --papier: #eef1ea;
-    --signal: #e0482f;
-    --zone: #2563eb;
-    --text: #16302b;
-    --grau: #6b7a73;
+    --wald: #16302b; --moos: #2f6b4f; --papier: #eef1ea; --signal: #e0482f;
+    --zone: #2563eb; --text: #16302b; --grau: #6b7a73; --hell: #dde3da;
     --font: "Bricolage Grotesque", system-ui, -apple-system, sans-serif;
   }
   * { box-sizing: border-box; }
@@ -27,158 +28,229 @@
   button { cursor: pointer; border: 0; }
   button:focus-visible, input:focus-visible { outline: 3px solid var(--signal); outline-offset: 2px; }
 
-  /* ---------- Startbildschirm ---------- */
-  #start {
-    min-height: 100%;
-    padding: calc(env(safe-area-inset-top, 0px) + 48px) 24px calc(env(safe-area-inset-bottom, 0px) + 24px);
-    color: var(--papier);
-    display: flex; flex-direction: column; gap: 28px;
-    max-width: 480px; margin: 0 auto;
-  }
-  #start h1 {
-    font-size: clamp(56px, 18vw, 88px); line-height: .9; margin: 0;
-    font-weight: 800; letter-spacing: -0.03em;
-  }
+  /* Startbildschirm */
+  #start { min-height: 100%; padding: calc(env(safe-area-inset-top, 0px) + 48px) 24px calc(env(safe-area-inset-bottom, 0px) + 24px);
+    color: var(--papier); display: flex; flex-direction: column; gap: 28px; max-width: 480px; margin: 0 auto; }
+  #start h1 { font-size: clamp(56px, 18vw, 88px); line-height: .9; margin: 0; font-weight: 800; letter-spacing: -0.03em; }
   #start h1 span { display: block; color: var(--signal); }
   #start p.lead { margin: 0; color: #b9c7bf; font-size: 18px; line-height: 1.45; max-width: 34ch; }
   .feld { display: flex; flex-direction: column; gap: 8px; }
   .feld label { font-size: 15px; color: #b9c7bf; }
-  .feld input {
-    background: #21423b; color: var(--papier); border: 2px solid #2f5a50;
-    border-radius: 14px; padding: 14px 16px; width: 100%;
-  }
+  .feld input { background: #21423b; color: var(--papier); border: 2px solid #2f5a50; border-radius: 14px; padding: 14px 16px; width: 100%; }
   .rollen { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .rolle {
-    background: #21423b; color: var(--papier); border: 2px solid #2f5a50;
-    border-radius: 14px; padding: 16px 12px; text-align: left; line-height: 1.25;
-  }
+  .rolle { background: #21423b; color: var(--papier); border: 2px solid #2f5a50; border-radius: 14px; padding: 16px 12px; text-align: left; line-height: 1.25; }
   .rolle b { display: block; font-size: 20px; margin-bottom: 4px; }
   .rolle small { color: #b9c7bf; font-size: 14px; }
   .rolle[aria-pressed="true"] { border-color: var(--signal); background: #2c2a24; }
-  #los {
-    background: var(--signal); color: white; font-weight: 800; font-size: 20px;
-    padding: 18px; border-radius: 16px; margin-top: 4px;
-  }
+  #los { background: var(--signal); color: white; font-weight: 800; font-size: 20px; padding: 18px; border-radius: 16px; margin-top: 4px; }
   #startFehler { color: #ffb4a6; min-height: 1.2em; margin: -12px 0 0; font-size: 15px; }
 
-  /* ---------- Spielbildschirm ---------- */
-  #spiel { display: none; height: 100%; position: relative; }
+  /* Spielbildschirm */
+  #spiel { display: none; height: 100%; position: relative; overflow: hidden; }
   #map { position: absolute; inset: 0; background: #dfe3dc; }
-  #panel {
-    position: absolute; left: 10px; right: 10px;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
-    background: var(--papier); border-radius: 22px;
-    padding: 14px; z-index: 1000;
-    box-shadow: 0 10px 30px rgba(22, 48, 43, .35);
-    display: flex; flex-direction: column; gap: 12px;
-  }
+  #panel { position: absolute; left: 10px; right: 10px; bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+    background: var(--papier); border-radius: 22px; padding: 14px; z-index: 1000;
+    box-shadow: 0 10px 30px rgba(22, 48, 43, .35); display: flex; flex-direction: column; gap: 10px; }
   #kopf { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-  #wer { font-weight: 800; font-size: 20px; }
-  #uhr { font-weight: 800; font-size: 28px; font-variant-numeric: tabular-nums; color: var(--signal); }
-  #infos { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 15px; color: var(--grau); }
+  #wer { font-weight: 800; font-size: 19px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #uhr { font-weight: 800; font-size: 30px; font-variant-numeric: tabular-nums; color: var(--signal); white-space: nowrap; }
+  #infos { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 15px; color: var(--grau); }
   #infos .warn { color: var(--signal); font-weight: 700; }
   #infos .ok { color: var(--moos); font-weight: 700; }
-  .knoepfe { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-  .knoepfe button {
-    padding: 14px 6px; border-radius: 14px; font-weight: 700; font-size: 15px; color: white;
-  }
-  #bZone { background: var(--zone); }
-  #bZone.aktiv { background: var(--moos); }
-  #bLoeschen { background: #6b7a73; }
-  #bAktion { background: var(--signal); }
-  #hinweis {
-    position: absolute; top: calc(env(safe-area-inset-top, 0px) + 12px); left: 50%;
-    transform: translateX(-50%); z-index: 1000;
-    background: var(--wald); color: var(--papier); padding: 10px 16px; border-radius: 999px;
-    font-size: 15px; display: none; white-space: nowrap;
-  }
-  .leaflet-tooltip.name {
-    background: var(--wald); color: var(--papier); border: 0; border-radius: 8px;
-    font-family: var(--font); font-weight: 700; padding: 3px 8px; box-shadow: none;
-  }
+  .knoepfe { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; }
+  .knoepfe button { padding: 14px 6px; border-radius: 14px; font-weight: 700; font-size: 15px; color: white; }
+  .knoepfe button:disabled { opacity: .35; }
+  .blau { background: var(--zone); } .blau.aktiv { background: var(--moos); }
+  .grau { background: var(--grau); } .rot { background: var(--signal); }
+
+  #pushKnopf { background: var(--hell); color: var(--text); border-radius: 14px; padding: 12px 14px; font-size: 15px; font-weight: 700; text-align: left; line-height: 1.35; }
+  #pushKnopf[hidden] { display: none; }
+  .fab { position: absolute; right: 12px; top: calc(env(safe-area-inset-top, 0px) + 12px); z-index: 1000;
+    width: 48px; height: 48px; border-radius: 50%; background: var(--papier); color: var(--wald);
+    font-size: 22px; box-shadow: 0 4px 14px rgba(22, 48, 43, .3); }
+  #toasts { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 12px); left: 70px; right: 70px; z-index: 1500;
+    display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; }
+  .toast { background: var(--wald); color: var(--papier); padding: 12px 16px; border-radius: 14px; font-weight: 700;
+    font-size: 16px; text-align: center; box-shadow: 0 6px 20px rgba(0,0,0,.25); max-width: 420px; }
+  .toast.warn { background: var(--signal); color: #fff; }
+  #hinweis { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 72px); left: 50%; transform: translateX(-50%); z-index: 1000;
+    background: var(--wald); color: var(--papier); padding: 10px 16px; border-radius: 16px; font-size: 15px;
+    display: none; width: max-content; max-width: calc(100% - 24px); text-align: center; }
+
+  #modal { position: fixed; inset: 0; background: rgba(22, 48, 43, .55); z-index: 2000; display: flex;
+    align-items: flex-end; justify-content: center; padding: 12px; padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); }
+  #modal[hidden] { display: none; }
+  #modalInhalt { background: var(--papier); border-radius: 22px; padding: 20px; width: 100%; max-width: 480px; max-height: 80vh; overflow: auto; }
+  #modalInhalt h2 { margin: 0 0 8px; font-size: 26px; font-weight: 800; }
+  .frage { font-size: 20px; line-height: 1.35; margin: 0 0 8px; }
+  .klein { color: var(--grau); font-size: 15px; margin: 0 0 14px; line-height: 1.4; }
+  .antworten { display: grid; gap: 8px; }
+  .antworten button { padding: 14px; border-radius: 14px; background: var(--hell); color: var(--text); font-weight: 700; text-align: left; }
+  .antworten button:disabled { opacity: .5; }
+  .zeile { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; margin-top: 8px; }
+  .zeile button { padding: 14px; border-radius: 14px; background: var(--hell); color: var(--text); font-weight: 700; }
+  .zeile button.haupt { background: var(--signal); color: #fff; }
+  .liste { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 6px; }
+  .liste button { width: 100%; display: flex; justify-content: space-between; gap: 10px; padding: 12px 14px; border-radius: 12px; background: var(--hell); color: var(--text); font-size: 16px; }
+
+  .leaflet-tooltip.name { background: var(--wald); color: var(--papier); border: 0; border-radius: 8px;
+    font-family: var(--font); font-weight: 700; padding: 3px 8px; box-shadow: none; }
   .leaflet-tooltip.name::before { display: none; }
+  .leaflet-tooltip.aufgedeckt { background: #8a5a12; }
   .leaflet-top { top: env(safe-area-inset-top, 0px); }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
 </head>
 <body>
 
-<!-- Startbildschirm -->
 <main id="start">
   <h1>The<span>Hunt</span></h1>
   <p class="lead">Einer flieht, alle anderen jagen. Gebt alle denselben Spielcode ein, um im selben Spiel zu landen.</p>
-
   <div class="feld">
     <label for="name">Dein Name</label>
     <input id="name" autocomplete="nickname" placeholder="z. B. Lena" maxlength="20">
   </div>
-
   <div class="feld">
     <label for="code">Spielcode</label>
     <input id="code" autocapitalize="none" autocorrect="off" placeholder="z. B. jagd1" maxlength="30">
   </div>
-
   <div class="feld">
     <label>Deine Rolle</label>
     <div class="rollen">
-      <button class="rolle" data-rolle="jaeger" aria-pressed="true"><b>🔎 Jäger</b><small>Siehst die Pings von Mister X</small></button>
-      <button class="rolle" data-rolle="misterx" aria-pressed="false"><b>🦊 Mister X</b><small>Deine Position wird regelmäßig verraten</small></button>
+      <button class="rolle" data-rolle="jaeger" aria-pressed="true"><b>🔎 Jäger</b><small>Siehst die Pings und die anderen Jäger</small></button>
+      <button class="rolle" data-rolle="schatten" aria-pressed="false"><b id="schattenTitel">🌑 Schatten</b><small>Flieh 90 Minuten lang, ohne gefasst zu werden</small></button>
     </div>
   </div>
-
   <p id="startFehler" role="alert"></p>
   <button id="los">Spiel beitreten</button>
 </main>
 
-<!-- Spielbildschirm -->
 <section id="spiel">
   <div id="map"></div>
-  <div id="hinweis">Tippe Punkte auf die Karte</div>
+  <button class="fab" id="fabMich" aria-label="Karte auf mich zentrieren">◎</button>
+  <div id="toasts" aria-live="polite"></div>
+  <div id="hinweis"></div>
   <div id="panel">
-    <div id="kopf">
-      <span id="wer"></span>
-      <span id="uhr">–</span>
-    </div>
+    <div id="kopf"><span id="wer"></span><span id="uhr">–</span></div>
     <div id="infos"></div>
-    <div class="knoepfe">
-      <button id="bZone">Zone zeichnen</button>
-      <button id="bLoeschen">Zone löschen</button>
-      <button id="bAktion"></button>
-    </div>
+    <button id="pushKnopf" hidden></button>
+    <div class="knoepfe" id="knoepfe"></div>
   </div>
 </section>
 
+<div id="modal" hidden><div id="modalInhalt" role="dialog" aria-modal="true"></div></div>
+
 <script>
-// ---------- Einstellungen ----------
+// =====================================================================
+// Einstellungen – hier kannst du die Spielregeln anpassen
+// =====================================================================
 const SUPABASE_URL = 'https://pgrjysyyubkhykwjsath.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_d8Uxjl4pCXvfooQFijRBuw_UY6QfKE1';
-const PING_INTERVALL = 60;   // Sekunden zwischen zwei Pings von Mister X
-const SYNC_INTERVALL = 4;    // Sekunden zwischen zwei Abgleichen mit dem Server
-const JAEGER_TIMEOUT = 120;  // Jäger ohne Update seit so vielen Sekunden gelten als offline
-const X_SIEHT_JAEGER = true;
 
-// ---------- Server ----------
-const HEADERS = { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' };
+const FLUCHT = { name: 'Schatten', emoji: '🌑', der: 'der Schatten', Der: 'Der Schatten' };  // Name der fliehenden Person
+const SPIELDAUER_MIN = 90;      // Gesamtdauer ab Spielstart
+const VORSPRUNG_MIN = 10;       // Vorsprung, danach kommt der erste Ping
+const PING_ABSTAND_MIN = 7.5;   // 7:30 Minuten zwischen zwei Pings
+const RAETSEL_MIN = [30, 60];   // Zeitpunkte der Rätsel
+const RAETSEL_DAUER_S = 180;    // Zeit zum Antworten
+const AUFDECKEN_MIN = [30, 60]; // Zeitpunkte, an denen der Schatten die Jäger einmal sieht
+const SCHRUMPF_MIN = 60;        // Zeitpunkt, an dem die Zone schrumpft
+const SCHRUMPF_FAKTOR = 0.8;    // 0.8 = Zone wird auf 80 % Größe (ca. 64 % Fläche) verkleinert
+const JOKER_RADIUS_M = 1000;    // Falscher Ping höchstens so weit von der echten Position
+const SYNC_S = 4;               // Abgleich mit dem Server
+const SPUR_S = 20;              // Wie oft die Route des Schattenes gespeichert wird
+const JAEGER_TIMEOUT_S = 120;   // Jäger ohne Update gelten danach als offline
 
-async function dbGet(tabelle, params) {
-  const url = SUPABASE_URL + '/rest/v1/' + tabelle + '?' + new URLSearchParams(params);
-  const r = await fetch(url, { headers: HEADERS });
-  if (!r.ok) throw new Error(tabelle + ': ' + r.status);
-  return r.json();
-}
-async function dbInsert(tabelle, daten) {
-  const r = await fetch(SUPABASE_URL + '/rest/v1/' + tabelle, { method: 'POST', headers: HEADERS, body: JSON.stringify(daten) });
-  if (!r.ok) throw new Error(tabelle + ': ' + r.status);
-}
-async function dbUpsert(tabelle, daten) {
-  const r = await fetch(SUPABASE_URL + '/rest/v1/' + tabelle, {
-    method: 'POST', headers: { ...HEADERS, Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify(daten)
-  });
-  if (!r.ok) throw new Error(tabelle + ': ' + r.status);
-}
-const isoVor = (sek = 0) => new Date(Date.now() - sek * 1000).toISOString();
-const uhrzeit = (d) => d.toLocaleTimeString('de-DE');
+const RAETSEL = [
+  { frage: 'Wann erfand Albert Einstein die Glühbirne?', antworten: ['1950', '2015', 'nie', '1879'], richtig: 'nie' },
+  { frage: 'Was war vor der Entdeckung des Mount Everest der höchste Berg der Welt?', antworten: ['K2', 'Mount Everest', 'Zugspitze', 'Kilimandscharo'], richtig: 'Mount Everest' },
+  { frage: 'Wie viele Monate haben 28 Tage?', antworten: ['1', '2', '6', '12'], richtig: '12' },
+  { frage: 'Ein Bauer hat 17 Schafe. Alle bis auf 9 sterben. Wie viele bleiben übrig?', antworten: ['8', '9', '17', '0'], richtig: '9' },
+  { frage: 'Welche Farbe hat die Blackbox in einem Flugzeug?', antworten: ['Schwarz', 'Orange', 'Gelb', 'Silber'], richtig: 'Orange' },
+  { frage: 'Wie lange dauerte der Hundertjährige Krieg?', antworten: ['100 Jahre', '116 Jahre', '99 Jahre', '87 Jahre'], richtig: '116 Jahre' },
+  { frage: 'Aus welchem Land stammen Panamahüte ursprünglich?', antworten: ['Panama', 'Ecuador', 'Kolumbien', 'Mexiko'], richtig: 'Ecuador' },
+  { frage: 'Wie viele Tiere jeder Art nahm Moses mit auf die Arche?', antworten: ['1', '2', '7', 'keine'], richtig: 'keine' },
+  { frage: 'Was ist schwerer: ein Kilo Federn oder ein Kilo Eisen?', antworten: ['Federn', 'Eisen', 'Gleich schwer', 'Kommt aufs Wetter an'], richtig: 'Gleich schwer' },
+  { frage: 'Welches ist das größte Organ des Menschen?', antworten: ['Leber', 'Haut', 'Lunge', 'Darm'], richtig: 'Haut' },
+  { frage: 'Wie viele Ecken hat ein Würfel?', antworten: ['6', '8', '12', '4'], richtig: '8' },
+  { frage: 'Welcher Planet ist der Sonne am nächsten?', antworten: ['Venus', 'Merkur', 'Mars', 'Erde'], richtig: 'Merkur' }
+];
 
+// Öffentlicher Push-Schlüssel (der private steckt nur in der Supabase-Funktion)
+const VAPID_PUBLIC = 'BIzMfa_kAmFV9RLW26p47mtD32NHLESNJRc5ekuATs_xP5-EnvP6aU0cVxC_2Umydh99eNPcQmynoOCgYECex68';
+
+// =====================================================================
+// Push-Benachrichtigungen
+// =====================================================================
+const istIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+const istHomescreen = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const pushMoeglich = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+let swReg = null;
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').then(r => { swReg = r; }).catch(e => console.warn('Service Worker', e));
+}
+function pushStatus() {
+  if (!pushMoeglich) return (istIOS && !istHomescreen) ? 'homescreen' : 'nein';
+  if (Notification.permission === 'granted') return 'an';
+  if (Notification.permission === 'denied') return 'blockiert';
+  return 'aus';
+}
+function base64ZuBytes(b64) {
+  const pad = '='.repeat((4 - b64.length % 4) % 4);
+  const roh = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from([...roh].map(c => c.charCodeAt(0)));
+}
+async function pushAboSpeichern() {
+  const reg = swReg || await navigator.serviceWorker.ready;
+  let abo = await reg.pushManager.getSubscription();
+  if (!abo) abo = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: base64ZuBytes(VAPID_PUBLIC) });
+  const j = abo.toJSON();
+  await dbUpsert('push_abos', { endpoint: j.endpoint, spiel: s.code, name: s.name, rolle: s.rolle, abo: j, aktualisiert: iso() }, 'endpoint');
+}
+async function pushAktivieren() {
+  try {
+    const erlaubnis = await Notification.requestPermission();
+    if (erlaubnis !== 'granted') { toast('Benachrichtigungen wurden nicht erlaubt', true); }
+    else { await pushAboSpeichern(); toast('Benachrichtigungen sind an'); }
+  } catch (e) {
+    console.warn(e);
+    toast('Benachrichtigungen konnten nicht aktiviert werden', true);
+  }
+  render();
+}
+function renderPushKnopf() {
+  const k = $('pushKnopf');
+  const st = pushStatus();
+  if (s.pushVersteckt || st === 'an' || st === 'nein') { k.hidden = true; return; }
+  k.hidden = false;
+  if (st === 'aus') {
+    k.textContent = '🔔 Benachrichtigungen aktivieren – damit du Pings auch bei gesperrtem Handy mitbekommst';
+    k.onclick = pushAktivieren;
+  } else if (st === 'homescreen') {
+    k.textContent = '🔔 Für Benachrichtigungen: unten auf Teilen → „Zum Home-Bildschirm“, dann The Hunt von dort öffnen. (Tippen zum Ausblenden)';
+    k.onclick = () => { s.pushVersteckt = true; render(); };
+  } else {
+    k.textContent = '🔕 Benachrichtigungen sind blockiert – in den Einstellungen unter Mitteilungen erlauben. (Tippen zum Ausblenden)';
+    k.onclick = () => { s.pushVersteckt = true; render(); };
+  }
+}
+
+// =====================================================================
+// Hilfsfunktionen
+// =====================================================================
+const MIN = 60000;
+const $ = (id) => document.getElementById(id);
+const jetzt = () => Date.now();
+const iso = (ms = jetzt()) => new Date(ms).toISOString();
+const uhr = (ms) => new Date(ms).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+function mmss(ms) { const sek = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(sek / 60) + ':' + String(sek % 60).padStart(2, '0'); }
+function esc(t) { return String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+function abstandM([lat1, lng1], [lat2, lng2]) {
+  const r = 6371000, rad = Math.PI / 180;
+  const a = Math.sin((lat2 - lat1) * rad / 2) ** 2 + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin((lng2 - lng1) * rad / 2) ** 2;
+  return 2 * r * Math.asin(Math.sqrt(a));
+}
 function punktInPolygon([y, x], poly) {
   let drin = false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -187,157 +259,286 @@ function punktInPolygon([y, x], poly) {
   }
   return drin;
 }
+function geschrumpft(zone) {
+  const cy = zone.reduce((a, p) => a + p[0], 0) / zone.length;
+  const cx = zone.reduce((a, p) => a + p[1], 0) / zone.length;
+  return zone.map(([y, x]) => [cy + (y - cy) * SCHRUMPF_FAKTOR, cx + (x - cx) * SCHRUMPF_FAKTOR]);
+}
+function zufaelligeIndizes(anzahl, n) {
+  const a = [...Array(anzahl).keys()];
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a.slice(0, n);
+}
 
-// ---------- Zustand ----------
+// =====================================================================
+// Server (Supabase)
+// =====================================================================
+const HEADERS = { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' };
+async function anfrage(methode, pfad, body, extra = {}) {
+  const r = await fetch(SUPABASE_URL + '/rest/v1/' + pfad, {
+    method: methode, headers: { ...HEADERS, ...extra }, body: body !== undefined ? JSON.stringify(body) : undefined
+  });
+  if (!r.ok) throw new Error(pfad + ' ' + r.status + ' ' + await r.text());
+  const t = await r.text();
+  return t ? JSON.parse(t) : null;
+}
+const qs = (o) => new URLSearchParams(o).toString();
+const dbGet = (t, p) => anfrage('GET', t + '?' + qs(p));
+const dbInsert = (t, d) => anfrage('POST', t, d);
+const dbUpsert = (t, d, konflikt) => anfrage('POST', t + '?on_conflict=' + konflikt, d, { Prefer: 'resolution=merge-duplicates' });
+const dbInsertIgnorieren = (t, d, konflikt) => anfrage('POST', t + '?on_conflict=' + konflikt, d, { Prefer: 'resolution=ignore-duplicates,return=representation' });
+const dbPatch = (t, p, d) => anfrage('PATCH', t + '?' + qs(p), d, { Prefer: 'return=representation' });
+const dbDelete = (t, p) => anfrage('DELETE', t + '?' + qs(p));
+
+// =====================================================================
+// Zustand
+// =====================================================================
 const s = {
-  name: '', spiel: '', istX: false,
-  position: null, zentriert: false,
-  zone: [], zeichnen: false, zoneSperreBis: 0,
-  countdown: PING_INTERVALL,
-  letzterPingId: null, letzterPingZeit: null,
-  anzahlJaeger: 0, online: true, gpsFehler: null
+  name: '', code: '', rolle: 'jaeger',
+  position: null, zentriert: false, gpsFehler: null, online: true,
+  spiel: null, zoneLokal: [], zeichnen: false, zoneSperreBis: 0,
+  pings: [], spieler: [], belohnungen: [], meineRunden: new Set(),
+  ersterSync: true, gemeldet: new Set(), ausgewertet: new Set(),
+  jokerModus: false, aufdeckung: null, modalTyp: null, raetselEnde: 0,
+  letzteSpur: 0, fangAbgelehnt: null, knopfSchluessel: '', pushVersteckt: false
 };
+const istSchatten = () => s.rolle === 'schatten';
 
-// ---------- Startbildschirm ----------
+function startMs() { return s.spiel && s.spiel.start ? Date.parse(s.spiel.start) : null; }
+function endeMs() { const st = startMs(); return st == null ? null : st + SPIELDAUER_MIN * MIN; }
+function phase() {
+  if (!s.spiel || !s.spiel.start || s.spiel.status === 'warten') return 'lobby';
+  if (s.spiel.status === 'gefasst' || s.spiel.status === 'entkommen' || jetzt() >= endeMs()) return 'ende';
+  return 'laeuft';
+}
+function pingZeit(k) { return startMs() + (VORSPRUNG_MIN + k * PING_ABSTAND_MIN) * MIN; }
+function naechsterPingNr() {
+  for (let k = 0; k < 1000; k++) { const t = pingZeit(k); if (t > endeMs()) return null; if (t > jetzt()) return k; }
+  return null;
+}
+function faelligePingNrs() {
+  const r = [];
+  for (let k = 0; k < 1000; k++) { const t = pingZeit(k); if (t > endeMs() || t > jetzt()) break; r.push(k); }
+  return r;
+}
+function zoneSchrumpftSchon() { return phase() !== 'lobby' && startMs() && jetzt() >= startMs() + SCHRUMPF_MIN * MIN; }
+function aktuelleZone() { const z = s.zoneLokal; return (z.length >= 3 && zoneSchrumpftSchon()) ? geschrumpft(z) : z; }
+function jaegerOnline() {
+  return s.spieler.filter(p => p.rolle === 'jaeger' && Date.parse(p.aktualisiert) >= jetzt() - JAEGER_TIMEOUT_S * 1000);
+}
+const schattenDaten = () => s.spieler.find(p => p.rolle === 'schatten');
+const jokerVerfuegbar = () => s.belohnungen.find(b => b.rolle === 'schatten' && b.gewonnen && !b.eingeloest && b.fake_lat == null);
+const jokerGeplant = () => s.belohnungen.find(b => b.rolle === 'schatten' && b.gewonnen && !b.eingeloest && b.fake_lat != null);
+const bonusVerfuegbar = () => s.belohnungen.find(b => b.rolle === 'jaeger' && b.gewonnen && !b.eingeloest);
+
+// =====================================================================
+// Ton, Vibration, Meldungen
+// =====================================================================
+let audio = null;
+function audioStarten() {
+  try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); } catch (e) {}
+}
+function ton(freq = 880, mal = 1) {
+  if (navigator.vibrate) navigator.vibrate([].concat(...Array(mal).fill([250, 120])));
+  if (!audio) return;
+  try {
+    audio.resume();
+    for (let i = 0; i < mal; i++) {
+      const t = audio.currentTime + i * 0.32;
+      const o = audio.createOscillator(), g = audio.createGain();
+      o.type = 'sine'; o.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.5, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+      o.connect(g).connect(audio.destination);
+      o.start(t); o.stop(t + 0.3);
+    }
+  } catch (e) {}
+}
+function toast(text, warn = false) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (warn ? ' warn' : '');
+  el.textContent = text;
+  $('toasts').appendChild(el);
+  setTimeout(() => el.remove(), 6000);
+}
+function hinweis(text) {
+  $('hinweis').textContent = text || '';
+  $('hinweis').style.display = text ? 'block' : 'none';
+}
+function modal(html, typ) {
+  s.modalTyp = typ;
+  $('modalInhalt').innerHTML = html;
+  $('modal').hidden = false;
+}
+function modalSchliessen() { $('modal').hidden = true; s.modalTyp = null; }
+function bestaetigen(titel, text, okText, fn) {
+  modal(`<h2>${esc(titel)}</h2><p class="klein">${esc(text)}</p>
+    <div class="zeile"><button id="mNein">Abbrechen</button><button class="haupt" id="mJa">${esc(okText)}</button></div>`, 'frage');
+  $('mNein').onclick = modalSchliessen;
+  $('mJa').onclick = () => { modalSchliessen(); fn(); };
+}
+
+// =====================================================================
+// Startbildschirm
+// =====================================================================
+$('schattenTitel').textContent = FLUCHT.emoji + ' ' + FLUCHT.name;
 let gewaehlteRolle = 'jaeger';
 document.querySelectorAll('.rolle').forEach(b => b.addEventListener('click', () => {
   gewaehlteRolle = b.dataset.rolle;
   document.querySelectorAll('.rolle').forEach(x => x.setAttribute('aria-pressed', x === b));
 }));
-
 try {
-  document.getElementById('name').value = localStorage.getItem('hunt-name') || '';
-  document.getElementById('code').value = localStorage.getItem('hunt-code') || '';
+  $('name').value = localStorage.getItem('hunt-name') || '';
+  $('code').value = localStorage.getItem('hunt-code') || '';
 } catch (e) {}
 
-document.getElementById('los').addEventListener('click', () => {
-  const name = document.getElementById('name').value.trim();
-  const code = document.getElementById('code').value.trim().toLowerCase();
-  const fehler = document.getElementById('startFehler');
+$('los').addEventListener('click', () => {
+  const name = $('name').value.trim();
+  const code = $('code').value.trim().toLowerCase();
+  const fehler = $('startFehler');
   if (!code) { fehler.textContent = 'Gib einen Spielcode ein.'; return; }
   if (gewaehlteRolle === 'jaeger' && !name) { fehler.textContent = 'Gib deinen Namen ein, damit die anderen dich erkennen.'; return; }
+  if (gewaehlteRolle === 'jaeger' && name.toLowerCase() === FLUCHT.name.toLowerCase()) { fehler.textContent = 'Dieser Name ist für die fliehende Person reserviert.'; return; }
   if (!navigator.geolocation) { fehler.textContent = 'Dieser Browser kann keinen Standort liefern.'; return; }
   try { localStorage.setItem('hunt-name', name); localStorage.setItem('hunt-code', code); } catch (e) {}
-
-  s.istX = gewaehlteRolle === 'misterx';
-  s.name = s.istX ? 'Mister X' : name;
-  s.spiel = code;
-  spielStarten();
+  s.rolle = gewaehlteRolle;
+  s.name = istSchatten() ? FLUCHT.name : name;
+  s.code = code;
+  audioStarten();
+  spielBeitreten();
 });
 
-// ---------- Karte ----------
-let map, ich, pingKreis, pingPunkt, zoneLayer, jaegerLayer;
+// =====================================================================
+// Karte
+// =====================================================================
+let map, ich, zoneLayer, pingLayer, jaegerLayer, aufdeckLayer, jokerLayer, spurLayer;
 
 function karteAufbauen() {
   map = L.map('map', { zoomControl: true }).setView([51.3127, 9.4797], 14);
-  L.tileLayer('https://tile.openstreetmap.de/{z}/{x}/{y}.png', {
-    maxZoom: 19, attribution: '&copy; OpenStreetMap'
-  }).addTo(map);
+  L.tileLayer('https://tile.openstreetmap.de/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
   zoneLayer = L.layerGroup().addTo(map);
+  pingLayer = L.layerGroup().addTo(map);
   jaegerLayer = L.layerGroup().addTo(map);
+  aufdeckLayer = L.layerGroup().addTo(map);
+  jokerLayer = L.layerGroup().addTo(map);
+  spurLayer = L.layerGroup().addTo(map);
   map.on('click', (e) => {
-    if (!s.zeichnen) return;
-    s.zone.push([e.latlng.lat, e.latlng.lng]);
-    zoneZeichnen();
+    if (s.zeichnen) { s.zoneLokal.push([e.latlng.lat, e.latlng.lng]); zeichneZone(); }
+    else if (s.jokerModus) jokerSetzen(e.latlng);
   });
   setTimeout(() => map.invalidateSize(), 300);
   window.addEventListener('resize', () => map.invalidateSize());
+  $('fabMich').onclick = () => { if (s.position) map.setView(s.position, Math.max(map.getZoom(), 16)); };
 }
 
-function zoneZeichnen() {
+function zeichneZone() {
   zoneLayer.clearLayers();
-  if (s.zone.length >= 3) {
-    L.polygon(s.zone, { color: '#2563eb', weight: 3, fillOpacity: 0.12 }).addTo(zoneLayer);
-  } else {
-    s.zone.forEach(p => L.circleMarker(p, { radius: 6, color: '#2563eb' }).addTo(zoneLayer));
-  }
+  const orig = s.zoneLokal, akt = aktuelleZone();
+  if (orig.length >= 3 && akt !== orig) L.polygon(orig, { color: '#2563eb', weight: 2, dashArray: '6 8', fill: false, interactive: false }).addTo(zoneLayer);
+  if (akt.length >= 3) L.polygon(akt, { color: '#2563eb', weight: 3, fillOpacity: 0.1, interactive: false }).addTo(zoneLayer);
+  else akt.forEach(p => L.circleMarker(p, { radius: 6, color: '#2563eb' }).addTo(zoneLayer));
 }
 
-function pingZeigen(lat, lng, zeit) {
-  if (pingKreis) { map.removeLayer(pingKreis); map.removeLayer(pingPunkt); }
-  pingKreis = L.circle([lat, lng], { radius: 100, color: '#e0482f', weight: 3, fillOpacity: 0.18 }).addTo(map);
-  pingPunkt = L.circleMarker([lat, lng], { radius: 9, color: '#fff', weight: 3, fillColor: '#e0482f', fillOpacity: 1 })
-    .bindTooltip('🦊 ' + zeit, { permanent: true, direction: 'top', offset: [0, -10], className: 'name' })
-    .addTo(map);
+function pingName(p) {
+  let n = p.nummer != null ? 'Ping ' + (p.nummer + 1) : 'Bonus-Ping';
+  if (istSchatten() && p.art === 'fake') n += ' (Joker)';
+  return n;
 }
-
-function jaegerZeigen(liste) {
-  jaegerLayer.clearLayers();
-  liste.forEach(j => {
-    L.circleMarker([j.lat, j.lng], { radius: 8, color: '#fff', weight: 3, fillColor: '#2f6b4f', fillOpacity: 1 })
-      .bindTooltip(j.name, { permanent: true, direction: 'top', offset: [0, -8], className: 'name' })
-      .addTo(jaegerLayer);
+function zeichnePings() {
+  pingLayer.clearLayers();
+  const liste = s.pings;
+  liste.forEach((p, i) => {
+    const neuester = i === liste.length - 1;
+    const op = neuester ? 1 : 0.3 + 0.5 * (i / Math.max(1, liste.length - 1));
+    L.circle([p.lat, p.lng], { radius: 100, color: '#e0482f', weight: neuester ? 3 : 1, opacity: op, fillOpacity: neuester ? 0.18 : 0.05, interactive: false }).addTo(pingLayer);
+    L.circleMarker([p.lat, p.lng], { radius: neuester ? 9 : 6, color: '#fff', weight: 2, fillColor: '#e0482f', fillOpacity: op })
+      .bindTooltip(pingName(p) + ' · ' + uhr(Date.parse(p.erstellt)), { permanent: neuester, direction: 'top', offset: [0, -8], className: 'name' })
+      .addTo(pingLayer);
   });
 }
+function zeichneJaeger() {
+  jaegerLayer.clearLayers();
+  if (istSchatten()) return; // Der Schatten sieht die Jäger nur beim Aufdecken
+  jaegerOnline().filter(j => j.name !== s.name).forEach(j => {
+    L.circleMarker([j.lat, j.lng], { radius: 8, color: '#fff', weight: 3, fillColor: '#2f6b4f', fillOpacity: 1 })
+      .bindTooltip(j.name, { permanent: true, direction: 'top', offset: [0, -8], className: 'name' }).addTo(jaegerLayer);
+  });
+}
+function zeichneAufdeckung() {
+  aufdeckLayer.clearLayers();
+  if (!istSchatten() || !s.aufdeckung) return;
+  s.aufdeckung.liste.forEach(j => {
+    L.circleMarker([j.lat, j.lng], { radius: 8, color: '#fff', weight: 3, fillColor: '#c4861f', fillOpacity: 0.9 })
+      .bindTooltip(j.name + ' · ' + uhr(s.aufdeckung.zeit), { permanent: true, direction: 'top', offset: [0, -8], className: 'name aufgedeckt' })
+      .addTo(aufdeckLayer);
+  });
+}
+function zeichneJoker() {
+  jokerLayer.clearLayers();
+  if (!istSchatten()) return;
+  if (s.jokerModus && s.position) L.circle(s.position, { radius: JOKER_RADIUS_M, color: '#c4861f', weight: 2, dashArray: '6 8', fillOpacity: 0.05, interactive: false }).addTo(jokerLayer);
+  const g = jokerGeplant();
+  if (g) L.circleMarker([g.fake_lat, g.fake_lng], { radius: 9, color: '#c4861f', weight: 3, dashArray: '3 3', fillOpacity: 0 })
+    .bindTooltip('Dein Joker', { permanent: true, direction: 'top', offset: [0, -8], className: 'name aufgedeckt' }).addTo(jokerLayer);
+}
 
-// ---------- GPS ----------
+// =====================================================================
+// GPS und Bildschirm wach halten
+// =====================================================================
 function gpsStarten() {
   navigator.geolocation.watchPosition((pos) => {
     s.gpsFehler = null;
     s.position = [pos.coords.latitude, pos.coords.longitude];
-    if (!ich) {
-      ich = L.circleMarker(s.position, { radius: 9, color: '#fff', weight: 3, fillColor: '#2563eb', fillOpacity: 1 }).addTo(map);
-    } else {
-      ich.setLatLng(s.position);
-    }
+    if (!ich) ich = L.circleMarker(s.position, { radius: 9, color: '#fff', weight: 3, fillColor: '#2563eb', fillOpacity: 1 }).addTo(map);
+    else ich.setLatLng(s.position);
     ich.bringToFront();
     if (!s.zentriert) { map.setView(s.position, 16); s.zentriert = true; }
   }, (err) => {
-    s.gpsFehler = err.code === 1
-      ? 'Standort blockiert – in den Browser-Einstellungen erlauben'
-      : 'Kein GPS-Signal';
+    s.gpsFehler = err.code === 1 ? 'Standort blockiert – in den Einstellungen erlauben' : 'Kein GPS-Signal';
   }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
 }
-
-// Bildschirm wach halten, sonst stoppt das GPS
-let wakeLock = null;
 async function wachHalten() {
-  try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+  try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch (e) {}
 }
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') wachHalten();
+  if (document.visibilityState === 'visible') { wachHalten(); audioStarten(); if (map) sync(); }
 });
 
-// ---------- Mister X: pingen ----------
-async function pingen() {
-  s.countdown = PING_INTERVALL;
-  if (!s.position) return;
-  const [lat, lng] = s.position;
-  pingZeigen(lat, lng, uhrzeit(new Date()));
-  try { await dbInsert('pings', { spiel: s.spiel, lat, lng }); }
-  catch (e) { console.warn('Ping nicht gesendet', e); s.online = false; }
-}
-
-// ---------- Abgleich mit dem Server ----------
+// =====================================================================
+// Abgleich mit dem Server
+// =====================================================================
+let syncLaeuft = false;
 async function sync() {
+  if (syncLaeuft) return;
+  syncLaeuft = true;
   try {
-    if (!s.istX && s.position) {
-      const [lat, lng] = s.position;
-      await dbUpsert('spieler', { spiel: s.spiel, name: s.name, rolle: 'jaeger', lat, lng, aktualisiert: isoVor(0) });
+    if (s.position && phase() !== 'ende') {
+      await dbUpsert('spieler', { spiel: s.code, name: s.name, rolle: s.rolle, lat: s.position[0], lng: s.position[1], aktualisiert: iso() }, 'spiel,name');
     }
-
-    const jaeger = await dbGet('spieler', {
-      spiel: 'eq.' + s.spiel, rolle: 'eq.jaeger',
-      aktualisiert: 'gte.' + isoVor(JAEGER_TIMEOUT), select: 'name,lat,lng'
-    });
-    s.anzahlJaeger = jaeger.length;
-    if (!s.istX || X_SIEHT_JAEGER) jaegerZeigen(jaeger.filter(j => j.name !== s.name));
-
-    const pings = await dbGet('pings', {
-      spiel: 'eq.' + s.spiel, order: 'erstellt.desc', limit: 1, select: 'id,lat,lng,erstellt'
-    });
-    if (pings.length && pings[0].id !== s.letzterPingId) {
-      const p = pings[0];
-      s.letzterPingId = p.id;
-      s.letzterPingZeit = new Date(p.erstellt);
-      pingZeigen(p.lat, p.lng, uhrzeit(s.letzterPingZeit));
+    const [spiele, spieler, pings, bel, meine] = await Promise.all([
+      dbGet('spiele', { code: 'eq.' + s.code }),
+      dbGet('spieler', { spiel: 'eq.' + s.code, select: 'name,rolle,lat,lng,aktualisiert' }),
+      dbGet('pings', { spiel: 'eq.' + s.code, order: 'erstellt.asc', select: 'id,nummer,art,lat,lng,erstellt' }),
+      dbGet('belohnungen', { spiel: 'eq.' + s.code }),
+      dbGet('antworten', { spiel: 'eq.' + s.code, name: 'eq.' + s.name, select: 'runde' })
+    ]);
+    s.spiel = spiele[0] || null;
+    s.spieler = spieler;
+    neuePingsMelden(pings);
+    s.pings = pings;
+    neueBelohnungenMelden(bel);
+    s.belohnungen = bel;
+    s.meineRunden = new Set(meine.map(a => a.runde));
+    if (s.spiel && !s.zeichnen && jetzt() > s.zoneSperreBis) {
+      const z = s.spiel.zone || [];
+      if (JSON.stringify(z) !== JSON.stringify(s.zoneLokal)) s.zoneLokal = z;
     }
-
-    if (!s.zeichnen && Date.now() > s.zoneSperreBis) {
-      const spiele = await dbGet('spiele', { code: 'eq.' + s.spiel, select: 'zone' });
-      if (spiele.length) {
-        const zone = spiele[0].zone || [];
-        if (JSON.stringify(zone) !== JSON.stringify(s.zone)) { s.zone = zone; zoneZeichnen(); }
+    if (phase() === 'laeuft') {
+      await spielLogik();
+      if (istSchatten() && s.position && jetzt() - s.letzteSpur > SPUR_S * 1000) {
+        s.letzteSpur = jetzt();
+        await dbInsert('spur', { spiel: s.code, lat: s.position[0], lng: s.position[1] });
       }
     }
     s.online = true;
@@ -345,81 +546,391 @@ async function sync() {
     console.warn('Sync-Fehler', e);
     s.online = false;
   }
+  s.ersterSync = false;
+  syncLaeuft = false;
+  zeichneZone(); zeichnePings(); zeichneJaeger(); zeichneJoker();
+  render();
 }
 
-async function zoneHochladen() {
-  s.zoneSperreBis = Date.now() + 8000;
-  try { await dbUpsert('spiele', { code: s.spiel, zone: s.zone }); }
-  catch (e) { console.warn('Zone nicht gespeichert', e); s.online = false; }
+function neuePingsMelden(neu) {
+  if (s.ersterSync) return;
+  const alt = new Set(s.pings.map(p => p.id));
+  neu.filter(p => !alt.has(p.id)).forEach(p => {
+    if (p.art === 'bonus') {
+      if (istSchatten()) { toast('Die Jäger haben einen Bonus-Ping eingesetzt – lauf!', true); ton(440, 3); }
+      else { toast('Bonus-Ping: So sieht es gerade aus!'); ton(880, 2); }
+    } else if (istSchatten() && p.art === 'fake') {
+      toast('Dein Joker wurde als Ping gesendet'); ton(660, 1);
+    } else {
+      toast(pingName(p) + ' ist da!', istSchatten()); ton(880, 2);
+    }
+  });
+}
+function neueBelohnungenMelden(neu) {
+  if (s.ersterSync) return;
+  const alt = new Set(s.belohnungen.map(b => b.runde + b.rolle));
+  neu.filter(b => b.rolle === s.rolle && !alt.has(b.runde + b.rolle)).forEach(b => {
+    if (istSchatten()) toast(b.gewonnen ? 'Richtig! Du hast einen Joker für einen falschen Ping.' : 'Leider falsch – kein Joker.', !b.gewonnen);
+    else toast(b.gewonnen ? 'Alle richtig! Ihr habt einen Bonus-Ping.' : 'Nicht alle lagen richtig – kein Bonus-Ping.', !b.gewonnen);
+    ton(b.gewonnen ? 990 : 330, 1);
+  });
 }
 
-// ---------- Anzeige, jede Sekunde ----------
+// Pings erzeugen und Rätsel auswerten – das erledigt jedes Handy, das gerade offen ist.
+async function spielLogik() {
+  const st = startMs();
+  const vorhanden = new Set(s.pings.filter(p => p.nummer != null).map(p => p.nummer));
+  const schatten = schattenDaten();
+  for (const k of faelligePingNrs()) {
+    if (vorhanden.has(k) || !schatten) continue;
+    const joker = jokerGeplant();
+    const daten = { spiel: s.code, nummer: k, art: joker ? 'fake' : 'normal',
+      lat: joker ? joker.fake_lat : schatten.lat, lng: joker ? joker.fake_lng : schatten.lng };
+    const ergebnis = await dbInsertIgnorieren('pings', daten, 'spiel,nummer');
+    if (joker && ergebnis && ergebnis.length) {
+      await dbPatch('belohnungen', { spiel: 'eq.' + s.code, runde: 'eq.' + joker.runde, rolle: 'eq.schatten' }, { eingeloest: true });
+    }
+  }
+  for (let i = 0; i < RAETSEL_MIN.length; i++) {
+    const t0 = st + RAETSEL_MIN[i] * MIN, t1 = t0 + RAETSEL_DAUER_S * 1000;
+    if (jetzt() < t1 || s.ausgewertet.has(i) || s.belohnungen.some(b => b.runde === i)) continue;
+    s.ausgewertet.add(i);
+    const [antworten, jaeger] = await Promise.all([
+      dbGet('antworten', { spiel: 'eq.' + s.code, runde: 'eq.' + i }),
+      dbGet('spieler', { spiel: 'eq.' + s.code, rolle: 'eq.jaeger', aktualisiert: 'gte.' + iso(t0 - JAEGER_TIMEOUT_S * 1000), select: 'name' })
+    ]);
+    const jaegerOk = jaeger.length > 0 && jaeger.every(j => antworten.some(a => a.name === j.name && a.richtig));
+    const schattenOk = antworten.some(a => a.rolle === 'schatten' && a.richtig);
+    await dbInsertIgnorieren('belohnungen', [
+      { spiel: s.code, runde: i, rolle: 'jaeger', gewonnen: jaegerOk },
+      { spiel: s.code, runde: i, rolle: 'schatten', gewonnen: schattenOk }
+    ], 'spiel,runde,rolle');
+  }
+}
+
+// =====================================================================
+// Ereignisse im Sekundentakt
+// =====================================================================
+function einmal(schluessel, zeitpunkt, fn) {
+  if (s.gemeldet.has(schluessel)) return;
+  const n = jetzt();
+  if (n >= zeitpunkt) { s.gemeldet.add(schluessel); if (n < zeitpunkt + 60000) fn(); }
+}
+
 function tick() {
-  if (s.istX) {
-    s.countdown -= 1;
-    if (s.countdown <= 0) pingen();
-    document.getElementById('uhr').textContent = s.countdown + ' s';
-  } else if (s.letzterPingZeit) {
-    const sek = Math.floor((Date.now() - s.letzterPingZeit) / 1000);
-    document.getElementById('uhr').textContent = sek < 60 ? 'vor ' + sek + ' s' : 'vor ' + Math.floor(sek / 60) + ' min';
+  const ph = phase();
+  if (ph === 'laeuft') {
+    const st = startMs();
+    einmal('start', st, () => { toast(istSchatten() ? `Los! Du hast ${VORSPRUNG_MIN} Minuten Vorsprung.` : `Das Spiel läuft – ${FLUCHT.der} hat ${VORSPRUNG_MIN} Minuten Vorsprung.`); ton(660, 2); });
+    einmal('jagd', st + VORSPRUNG_MIN * MIN, () => { toast('Die Jagd beginnt!', true); ton(880, 3); });
+    if (istSchatten()) {
+      const k = naechsterPingNr();
+      if (k != null) einmal('warn' + k, pingZeit(k) - MIN, () => { toast('Achtung: Ping in 1 Minute!', true); ton(660, 2); });
+    }
+    RAETSEL_MIN.forEach((m, i) => {
+      const t0 = st + m * MIN, t1 = t0 + RAETSEL_DAUER_S * 1000;
+      if (jetzt() >= t0 && jetzt() < t1 && !s.meineRunden.has(i) && s.modalTyp == null) raetselZeigen(i, t1);
+    });
+    AUFDECKEN_MIN.forEach((m, i) => einmal('auf' + i, st + m * MIN, aufdecken));
+    einmal('schrumpf', st + SCHRUMPF_MIN * MIN, () => { toast('Die Zone schrumpft!', true); ton(550, 2); zeichneZone(); });
+    if (istSchatten() && s.spiel.fang_von && s.spiel.fang_von !== s.fangAbgelehnt && s.modalTyp == null) fangBestaetigen(s.spiel.fang_von);
+    if (!s.spiel.fang_von) s.fangAbgelehnt = null;
   }
+  if (ph === 'ende') {
+    if (s.spiel.status === 'laeuft' && !s.gemeldet.has('endePatch')) {
+      s.gemeldet.add('endePatch');
+      dbPatch('spiele', { code: 'eq.' + s.code, status: 'eq.laeuft' }, { status: 'entkommen', ende: iso(endeMs()) }).catch(() => {});
+    }
+    if (!s.gemeldet.has('ende') && (s.modalTyp == null || s.modalTyp === 'raetsel')) {
+      s.gemeldet.add('ende');
+      endeZeigen();
+    }
+  }
+  render();
+}
 
-  const infos = [];
-  infos.push(s.istX ? 'Nächster Ping deiner Position' : (s.letzterPingZeit ? 'Letzter Ping ' + uhrzeit(s.letzterPingZeit) : 'Noch kein Ping'));
-  infos.push(s.anzahlJaeger === 1 ? '1 Jäger online' : s.anzahlJaeger + ' Jäger online');
-  let html = infos.map(t => '<span>' + t + '</span>').join('');
-  if (s.position && s.zone.length >= 3) {
-    html += punktInPolygon(s.position, s.zone)
-      ? '<span class="ok">In der Zone</span>'
-      : '<span class="warn">Außerhalb der Zone</span>';
+function aufdecken() {
+  if (istSchatten()) {
+    s.aufdeckung = { zeit: jetzt(), liste: jaegerOnline() };
+    zeichneAufdeckung();
+    toast('Jäger aufgedeckt! So standen sie gerade.', false);
+    ton(990, 2);
+  } else {
+    toast(`${FLUCHT.Der} hat eure Positionen gerade gesehen!`, true);
+    ton(440, 2);
   }
-  if (s.gpsFehler) html += '<span class="warn">' + s.gpsFehler + '</span>';
+}
+
+// =====================================================================
+// Rätsel
+// =====================================================================
+function raetselZeigen(i, t1) {
+  const idx = (s.spiel.raetsel && s.spiel.raetsel[i] != null) ? s.spiel.raetsel[i] : i;
+  const r = RAETSEL[idx % RAETSEL.length];
+  s.raetselEnde = t1;
+  ton(880, 2);
+  const erklaerung = istSchatten()
+    ? 'Richtig beantwortet bekommst du einen Joker: Du darfst einen falschen Ping setzen.'
+    : 'Nur wenn alle Jäger richtig antworten, bekommt ihr einen Bonus-Ping.';
+  modal(`<h2>Rätsel ${i + 1}</h2><p class="frage">${esc(r.frage)}</p>
+    <p class="klein">${erklaerung} Noch <b id="rRest">${mmss(t1 - jetzt())}</b>.</p>
+    <div class="antworten">${r.antworten.map((a, j) => `<button data-j="${j}">${esc(a)}</button>`).join('')}</div>`, 'raetsel');
+  document.querySelectorAll('.antworten button').forEach(b => b.onclick = async () => {
+    const antwort = r.antworten[+b.dataset.j];
+    document.querySelectorAll('.antworten button').forEach(x => x.disabled = true);
+    try {
+      await dbUpsert('antworten', { spiel: s.code, runde: i, name: s.name, rolle: s.rolle, antwort, richtig: antwort === r.richtig }, 'spiel,runde,name');
+      s.meineRunden.add(i);
+      modalSchliessen();
+      toast('Antwort gespeichert – die Auflösung kommt, wenn die Zeit um ist.');
+    } catch (e) {
+      toast('Antwort nicht gespeichert – keine Verbindung. Nochmal versuchen.', true);
+      document.querySelectorAll('.antworten button').forEach(x => x.disabled = false);
+    }
+  });
+}
+
+// =====================================================================
+// Aktionen
+// =====================================================================
+function zoneUmschalten() {
+  s.zeichnen = !s.zeichnen;
+  hinweis(s.zeichnen ? 'Tippe die Eckpunkte der Zone auf die Karte' : null);
+  if (s.zeichnen) { s.zoneLokal = []; zeichneZone(); }
+  else if (s.zoneLokal.length >= 3) zoneHochladen();
+  render();
+}
+function zoneLoeschen() { s.zoneLokal = []; zeichneZone(); zoneHochladen(); }
+async function zoneHochladen() {
+  s.zoneSperreBis = jetzt() + 8000;
+  try { await dbUpsert('spiele', { code: s.code, zone: s.zoneLokal }, 'code'); }
+  catch (e) { toast('Zone nicht gespeichert – keine Verbindung', true); }
+}
+
+function spielStarten() {
+  const ohneZone = s.zoneLokal.length < 3 ? 'Es gibt noch keine Zone. ' : '';
+  bestaetigen('Spiel starten?',
+    `${ohneZone}Du bekommst ${VORSPRUNG_MIN} Minuten Vorsprung, danach gibt es alle ${mmss(PING_ABSTAND_MIN * MIN)} Minuten einen Ping. Das Spiel dauert ${SPIELDAUER_MIN} Minuten.`,
+    'Los geht’s', async () => {
+      try {
+        const filter = { spiel: 'eq.' + s.code };
+        await Promise.all(['pings', 'antworten', 'belohnungen', 'spur'].map(t => dbDelete(t, filter)));
+        await dbPatch('spiele', { code: 'eq.' + s.code }, {
+          start: iso(), status: 'laeuft', raetsel: zufaelligeIndizes(RAETSEL.length, RAETSEL_MIN.length), fang_von: null, ende: null
+        });
+        s.gemeldet.clear(); s.ausgewertet.clear(); s.aufdeckung = null;
+        await sync();
+      } catch (e) { toast('Start fehlgeschlagen – keine Verbindung', true); }
+    });
+}
+
+function pingListe() {
+  const liste = [...s.pings].reverse();
+  modal(`<h2>Pings</h2>` + (liste.length
+    ? `<ul class="liste">${liste.map(p => `<li><button data-id="${p.id}"><b>${esc(pingName(p))}</b><span>${uhr(Date.parse(p.erstellt))}</span></button></li>`).join('')}</ul>`
+    : '<p class="klein">Noch keine Pings.</p>') + `<div class="zeile"><button id="mZu">Schließen</button></div>`, 'liste');
+  document.querySelectorAll('.liste button').forEach(b => b.onclick = () => {
+    const p = s.pings.find(x => String(x.id) === b.dataset.id);
+    modalSchliessen();
+    if (p) map.setView([p.lat, p.lng], 17);
+  });
+  $('mZu').onclick = modalSchliessen;
+}
+
+function jokerStarten() {
+  s.jokerModus = true;
+  hinweis(`Tippe auf die Karte, wo der falsche Ping erscheinen soll (höchstens ${JOKER_RADIUS_M / 1000} km von dir)`);
+  zeichneJoker(); render();
+}
+function jokerAbbrechen() { s.jokerModus = false; hinweis(null); zeichneJoker(); render(); }
+async function jokerSetzen(latlng) {
+  const j = jokerVerfuegbar();
+  if (!j) { jokerAbbrechen(); return; }
+  if (!s.position) { toast('Warte auf dein GPS-Signal', true); return; }
+  if (abstandM(s.position, [latlng.lat, latlng.lng]) > JOKER_RADIUS_M) { toast(`Zu weit weg – höchstens ${JOKER_RADIUS_M / 1000} km von dir`, true); return; }
+  try {
+    await dbPatch('belohnungen', { spiel: 'eq.' + s.code, runde: 'eq.' + j.runde, rolle: 'eq.schatten', eingeloest: 'is.false' }, { fake_lat: latlng.lat, fake_lng: latlng.lng });
+    s.jokerModus = false; hinweis(null);
+    toast('Joker gesetzt – der nächste Ping zeigt diesen Ort');
+    await sync();
+  } catch (e) { toast('Joker nicht gespeichert – keine Verbindung', true); }
+}
+
+function bonusPing() {
+  bestaetigen('Bonus-Ping einsetzen?', `Ihr seht sofort, wo ${FLUCHT.der} gerade ist. Der Bonus ist dann für alle Jäger verbraucht, und ${FLUCHT.der} wird gewarnt.`, 'Einsetzen', async () => {
+    const b = bonusVerfuegbar(), schatten = schattenDaten();
+    if (!b) return;
+    if (!schatten) { toast(`${FLUCHT.Der} ist gerade nicht erreichbar`, true); return; }
+    try {
+      const r = await dbPatch('belohnungen', { spiel: 'eq.' + s.code, runde: 'eq.' + b.runde, rolle: 'eq.jaeger', eingeloest: 'is.false' }, { eingeloest: true });
+      if (!r || !r.length) { toast('Ein anderer Jäger war schneller'); return; }
+      await dbInsert('pings', { spiel: s.code, art: 'bonus', lat: schatten.lat, lng: schatten.lng });
+      await sync();
+    } catch (e) { toast('Bonus-Ping fehlgeschlagen – keine Verbindung', true); }
+  });
+}
+
+function gefasstMelden() {
+  bestaetigen(`${FLUCHT.name} gefasst?`, `${FLUCHT.Der} muss den Fang auf dem eigenen Handy bestätigen.`, 'Melden', async () => {
+    try { await dbPatch('spiele', { code: 'eq.' + s.code }, { fang_von: s.name }); toast(`Gemeldet – ${FLUCHT.der} muss bestätigen`); }
+    catch (e) { toast('Meldung fehlgeschlagen – keine Verbindung', true); }
+  });
+}
+function gefasstSchatten() {
+  bestaetigen('Wurdest du gefasst?', 'Damit endet das Spiel und die Jäger gewinnen.', 'Ja, gefasst', spielBeenden);
+}
+function fangBestaetigen(von) {
+  ton(440, 3);
+  modal(`<h2>Gefasst?</h2><p class="klein">${esc(von)} sagt, dich erwischt zu haben. Stimmt das?</p>
+    <div class="zeile"><button id="mNein">Nein</button><button class="haupt" id="mJa">Ja, gefasst</button></div>`, 'fang');
+  $('mJa').onclick = () => { modalSchliessen(); spielBeenden(); };
+  $('mNein').onclick = async () => {
+    modalSchliessen(); s.fangAbgelehnt = von;
+    try { await dbPatch('spiele', { code: 'eq.' + s.code }, { fang_von: null }); } catch (e) {}
+  };
+}
+async function spielBeenden() {
+  try { await dbPatch('spiele', { code: 'eq.' + s.code }, { status: 'gefasst', ende: iso() }); await sync(); }
+  catch (e) { toast('Keine Verbindung – nochmal versuchen', true); }
+}
+
+function endeZeigen() {
+  const gefasst = s.spiel.status === 'gefasst';
+  const minuten = gefasst && s.spiel.ende ? Math.round((Date.parse(s.spiel.ende) - startMs()) / MIN) : SPIELDAUER_MIN;
+  const gewonnen = istSchatten() ? !gefasst : gefasst;
+  ton(gewonnen ? 990 : 330, 3);
+  modal(`<h2>${gewonnen ? 'Gewonnen!' : 'Verloren!'}</h2>
+    <p class="frage">${gefasst ? `${FLUCHT.emoji} ${FLUCHT.Der} wurde nach ${minuten} Minuten gefasst.` : `${FLUCHT.emoji} ${FLUCHT.Der} ist entkommen – ${SPIELDAUER_MIN} Minuten ohne Fang.`}</p>
+    <div class="zeile"><button id="mZu">Schließen</button><button class="haupt" id="mRoute">Route abspielen</button></div>`, 'ende');
+  $('mZu').onclick = modalSchliessen;
+  $('mRoute').onclick = routeAbspielen;
+}
+
+async function routeAbspielen() {
+  modalSchliessen();
+  try {
+    const spur = await dbGet('spur', { spiel: 'eq.' + s.code, order: 'zeit.asc', select: 'lat,lng,zeit' });
+    if (spur.length < 2) { toast('Zu wenig Daten für eine Route'); return; }
+    spurLayer.clearLayers();
+    const punkte = spur.map(p => [p.lat, p.lng]);
+    map.fitBounds(L.latLngBounds(punkte).pad(0.2));
+    const linie = L.polyline([], { color: '#e0482f', weight: 4 }).addTo(spurLayer);
+    const kopf = L.circleMarker(punkte[0], { radius: 9, color: '#fff', weight: 3, fillColor: '#e0482f', fillOpacity: 1 })
+      .bindTooltip('', { permanent: true, direction: 'top', offset: [0, -10], className: 'name' }).addTo(spurLayer);
+    const ruhig = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const dauer = ruhig ? 1 : 15000, beginn = performance.now();
+    const schritt = (t) => {
+      const f = Math.min(1, (t - beginn) / dauer);
+      const n = Math.max(1, Math.round(f * (punkte.length - 1)) + 1);
+      linie.setLatLngs(punkte.slice(0, n));
+      kopf.setLatLng(punkte[n - 1]);
+      kopf.setTooltipContent(FLUCHT.emoji + ' ' + uhr(Date.parse(spur[n - 1].zeit)));
+      if (f < 1) requestAnimationFrame(schritt);
+    };
+    requestAnimationFrame(schritt);
+  } catch (e) { toast('Route konnte nicht geladen werden', true); }
+}
+
+// =====================================================================
+// Anzeige
+// =====================================================================
+function render() {
+  const ph = phase();
+  $('wer').textContent = (istSchatten() ? FLUCHT.emoji + ' ' + FLUCHT.name : '🔎 ' + s.name) + ' · ' + s.code;
+  let gross = '–';
+  const infos = [];
+  if (ph === 'lobby') {
+    gross = 'Lobby';
+    infos.push(istSchatten() ? 'Zeichne die Zone und starte, wenn alle da sind' : `Warte, bis ${FLUCHT.der} das Spiel startet`);
+  } else if (ph === 'laeuft') {
+    const vorsprungEnde = startMs() + VORSPRUNG_MIN * MIN;
+    if (jetzt() < vorsprungEnde) {
+      gross = mmss(vorsprungEnde - jetzt());
+      infos.push(istSchatten() ? 'Vorsprung – lauf!' : 'Die Jagd beginnt gleich');
+    } else {
+      gross = mmss(endeMs() - jetzt());
+      const k = naechsterPingNr();
+      infos.push(k != null ? 'Nächster Ping in ' + mmss(pingZeit(k) - jetzt()) : 'Kein Ping mehr bis zum Ende');
+    }
+  } else {
+    gross = 'Ende';
+  }
+  const anzahl = jaegerOnline().length;
+  infos.push(anzahl === 1 ? '1 Jäger online' : anzahl + ' Jäger online');
+
+  let html = infos.map(t => `<span>${esc(t)}</span>`).join('');
+  const z = aktuelleZone();
+  if (s.position && z.length >= 3 && ph !== 'ende') {
+    html += punktInPolygon(s.position, z) ? '<span class="ok">In der Zone</span>' : '<span class="warn">Außerhalb der Zone!</span>';
+  }
+  if (istSchatten() && jokerGeplant()) html += '<span class="ok">Joker bereit: nächster Ping ist falsch</span>';
+  if (!istSchatten() && bonusVerfuegbar() && ph === 'laeuft') html += '<span class="ok">Bonus-Ping verfügbar</span>';
+  if (s.gpsFehler) html += `<span class="warn">${esc(s.gpsFehler)}</span>`;
   else if (!s.position) html += '<span>Suche GPS-Signal…</span>';
   if (!s.online) html += '<span class="warn">Keine Verbindung zum Server</span>';
-  document.getElementById('infos').innerHTML = html;
-}
+  $('uhr').textContent = gross;
+  $('infos').innerHTML = html;
 
-// ---------- Knöpfe ----------
-function knoepfeVerbinden() {
-  const bZone = document.getElementById('bZone');
-  const hinweis = document.getElementById('hinweis');
-
-  bZone.addEventListener('click', () => {
-    s.zeichnen = !s.zeichnen;
-    bZone.textContent = s.zeichnen ? 'Zone fertig' : 'Zone zeichnen';
-    bZone.classList.toggle('aktiv', s.zeichnen);
-    hinweis.style.display = s.zeichnen ? 'block' : 'none';
-    if (s.zeichnen) { s.zone = []; zoneZeichnen(); }
-    else if (s.zone.length >= 3) zoneHochladen();
-  });
-
-  document.getElementById('bLoeschen').addEventListener('click', () => {
-    s.zone = []; zoneZeichnen(); zoneHochladen();
-  });
-
-  const bAktion = document.getElementById('bAktion');
-  if (s.istX) {
-    bAktion.textContent = 'Ping jetzt';
-    bAktion.addEventListener('click', pingen);
-  } else {
-    bAktion.textContent = 'Auf mich';
-    bAktion.addEventListener('click', () => { if (s.position) map.setView(s.position, map.getZoom()); });
+  if (s.modalTyp === 'raetsel') {
+    if (jetzt() >= s.raetselEnde) { modalSchliessen(); toast('Zeit abgelaufen – keine Antwort zählt als falsch', true); }
+    else if ($('rRest')) $('rRest').textContent = mmss(s.raetselEnde - jetzt());
   }
+  renderKnoepfe(ph);
+  renderPushKnopf();
 }
 
-// ---------- Spiel starten ----------
-function spielStarten() {
-  document.getElementById('start').style.display = 'none';
-  document.getElementById('spiel').style.display = 'block';
-  document.getElementById('wer').textContent = (s.istX ? '🦊 ' : '🔎 ') + s.name + ' · ' + s.spiel;
+function renderKnoepfe(ph) {
+  let knoepfe;
+  if (ph === 'lobby') {
+    knoepfe = [
+      [s.zeichnen ? 'Zone fertig' : 'Zone zeichnen', 'blau' + (s.zeichnen ? ' aktiv' : ''), zoneUmschalten],
+      ['Zone löschen', 'grau', zoneLoeschen]
+    ];
+    if (istSchatten()) knoepfe.push(['Spiel starten', 'rot', spielStarten, s.zeichnen]);
+  } else if (ph === 'laeuft') {
+    knoepfe = istSchatten()
+      ? [['Pings', 'grau', pingListe],
+         s.jokerModus ? ['Abbrechen', 'blau aktiv', jokerAbbrechen] : ['Joker', 'blau', jokerStarten, !jokerVerfuegbar()],
+         ['Gefasst', 'rot', gefasstSchatten]]
+      : [['Pings', 'grau', pingListe],
+         ['Bonus-Ping', 'blau', bonusPing, !bonusVerfuegbar()],
+         ['Gefasst!', 'rot', gefasstMelden]];
+  } else {
+    knoepfe = [['Pings', 'grau', pingListe], ['Route', 'blau', routeAbspielen], ['Neues Spiel', 'rot', () => location.reload()]];
+  }
+  const schluessel = JSON.stringify(knoepfe.map(k => [k[0], k[1], !!k[3]]));
+  if (schluessel === s.knopfSchluessel) return;
+  s.knopfSchluessel = schluessel;
+  const box = $('knoepfe');
+  box.innerHTML = '';
+  knoepfe.forEach(([text, klasse, fn, aus]) => {
+    const b = document.createElement('button');
+    b.textContent = text; b.className = klasse; b.disabled = !!aus; b.onclick = fn;
+    box.appendChild(b);
+  });
+}
+
+// =====================================================================
+// Start
+// =====================================================================
+async function spielBeitreten() {
+  $('start').style.display = 'none';
+  $('spiel').style.display = 'block';
   karteAufbauen();
-  knoepfeVerbinden();
   gpsStarten();
   wachHalten();
-  sync();
-  setInterval(sync, SYNC_INTERVALL * 1000);
+  render();
+  try { await dbInsertIgnorieren('spiele', { code: s.code }, 'code'); } catch (e) { console.warn(e); }
+  if (pushStatus() === 'an') pushAboSpeichern().catch(e => console.warn('Push-Abo', e));
+  await sync();
+  // Ereignisse, die beim Beitreten schon vorbei sind, nicht nochmal melden
+  if (phase() !== 'lobby') {
+    const st = startMs();
+    ['start'].forEach(k => s.gemeldet.add(k));
+    if (jetzt() > st + VORSPRUNG_MIN * MIN) s.gemeldet.add('jagd');
+  }
+  setInterval(sync, SYNC_S * 1000);
   setInterval(tick, 1000);
-  tick();
 }
 </script>
 </body>
