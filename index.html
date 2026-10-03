@@ -43,6 +43,7 @@
   .rolle small { color: #b9c7bf; font-size: 14px; }
   .rolle[aria-pressed="true"] { border-color: var(--signal); background: #2c2a24; }
   #los { background: var(--signal); color: white; font-weight: 800; font-size: 20px; padding: 18px; border-radius: 16px; margin-top: 4px; }
+  .anleitung { color: var(--papier); font-weight: 800; font-size: 17px; text-decoration: none; align-self: flex-start; background: #21423b; border: 2px solid #2f5a50; border-radius: 14px; padding: 12px 16px; margin-top: -8px; }
   #startFehler { color: #ffb4a6; min-height: 1.2em; margin: -12px 0 0; font-size: 15px; }
 
   /* Spielbildschirm */
@@ -121,6 +122,7 @@
 <main id="start">
   <h1>The<span>Hunt</span></h1>
   <p class="lead">Die Schatten fliehen, alle anderen jagen. Gebt alle denselben Spielcode ein, um im selben Spiel zu landen.</p>
+  <a class="anleitung" href="anleitung.html">📖 Spielanleitung ansehen</a>
   <div class="feld">
     <label for="name">Dein Name</label>
     <input id="name" autocomplete="nickname" placeholder="z. B. Lena" maxlength="20">

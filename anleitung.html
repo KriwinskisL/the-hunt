@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16302b">
+<title>The Hunt – Spielanleitung</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌑</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --wald: #16302b; --flaeche: #21423b; --rand: #2f5a50; --moos: #2f6b4f;
+    --papier: #eef1ea; --matt: #b9c7bf; --signal: #e0482f; --zone: #5b8cf5;
+    --font: "Bricolage Grotesque", system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--wald); color: var(--papier); font-family: var(--font); }
+  body { overflow: hidden; -webkit-tap-highlight-color: transparent; }
+  button { font-family: inherit; cursor: pointer; border: 0; }
+  button:focus-visible, a:focus-visible { outline: 3px solid var(--signal); outline-offset: 3px; }
+
+  .buehne { position: fixed; inset: 0; bottom: calc(84px + env(safe-area-inset-bottom)); }
+  .folie {
+    position: absolute; inset: 0; overflow-y: auto;
+    padding: calc(28px + env(safe-area-inset-top)) clamp(22px, 6vw, 96px) 28px;
+    display: flex; flex-direction: column; justify-content: center; gap: clamp(18px, 3vh, 36px);
+    opacity: 0; visibility: hidden; transition: opacity .35s ease, visibility .35s;
+  }
+  .folie.aktiv { opacity: 1; visibility: visible; }
+  .folie > * { max-width: 1040px; width: 100%; margin-left: auto; margin-right: auto; }
+
+  h1, h2, h3, p { margin: 0; }
+  h2 { font-size: clamp(34px, 7vw, 76px); font-weight: 800; line-height: 1.02; letter-spacing: -0.02em; }
+  h3 { font-size: clamp(20px, 3.2vw, 32px); font-weight: 800; line-height: 1.15; }
+  p { font-size: clamp(17px, 2.3vw, 24px); line-height: 1.45; }
+  .matt { color: var(--matt); }
+  .rot { color: var(--signal); }
+
+  /* Titel */
+  .titel h1 { font-size: clamp(84px, 22vw, 220px); font-weight: 800; line-height: .86; letter-spacing: -0.045em; }
+  .titel h1 span { display: block; color: var(--signal); }
+  .radar { position: absolute; right: clamp(-60px, 4vw, 80px); top: 50%; width: min(70vw, 520px); aspect-ratio: 1; transform: translateY(-50%); pointer-events: none; opacity: .5; }
+  .radar span { position: absolute; inset: 0; border: 3px solid var(--signal); border-radius: 50%; animation: puls 3.6s ease-out infinite; opacity: 0; }
+  .radar span:nth-child(2) { animation-delay: 1.2s; } .radar span:nth-child(3) { animation-delay: 2.4s; }
+  @keyframes puls { from { transform: scale(.15); opacity: .9; } to { transform: scale(1); opacity: 0; } }
+
+  /* Bausteine */
+  .reihe { display: grid; gap: clamp(12px, 2vw, 24px); grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }
+  .karte { background: var(--flaeche); border: 2px solid var(--rand); border-radius: 22px; padding: clamp(16px, 2.4vw, 30px); display: flex; flex-direction: column; gap: 8px; }
+  .karte p { font-size: clamp(16px, 2vw, 21px); color: var(--matt); }
+  .karte .nr { color: var(--signal); font-weight: 800; font-size: clamp(26px, 4vw, 44px); line-height: 1; }
+  .rolle h3 { font-size: clamp(28px, 5vw, 52px); }
+
+  .zeit { display: grid; gap: 0; grid-template-columns: 1fr; }
+  .zeit div { display: grid; grid-template-columns: clamp(76px, 12vw, 120px) 1fr; gap: 0 16px; padding: 10px 0; border-top: 2px solid var(--rand); }
+  .zeit b { color: var(--signal); font-size: clamp(26px, 4.4vw, 46px); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+  .zeit h3 { font-size: clamp(18px, 2.6vw, 26px); }
+  .zeit p { font-size: clamp(15px, 1.9vw, 19px); color: var(--matt); grid-column: 2; }
+
+  .grosszahl { font-size: clamp(110px, 26vw, 300px); font-weight: 800; line-height: .85; letter-spacing: -0.05em; color: var(--signal); font-variant-numeric: tabular-nums; }
+  .zwei { display: grid; gap: clamp(18px, 3vw, 48px); grid-template-columns: 1fr; align-items: center; }
+  @media (min-width: 820px) { .zwei { grid-template-columns: auto 1fr; } }
+  .liste { display: flex; flex-direction: column; gap: 14px; }
+
+  .zonebild { width: min(100%, 380px); height: auto; justify-self: center; }
+
+  /* Steuerung */
+  .leiste {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+    padding: 12px clamp(14px, 4vw, 40px) calc(14px + env(safe-area-inset-bottom));
+    display: flex; align-items: center; gap: 10px; background: var(--wald); border-top: 2px solid var(--rand);
+  }
+  .leiste button { height: 56px; border-radius: 16px; font-weight: 800; font-size: 18px; color: var(--papier); background: var(--flaeche); min-width: 56px; }
+  .leiste button:disabled { opacity: .35; cursor: default; }
+  #vorlesen { background: var(--signal); color: #fff; padding: 0 22px; flex: 0 1 auto; }
+  .fortschritt { flex: 1; min-width: 0; text-align: center; color: var(--matt); font-size: 17px; font-variant-numeric: tabular-nums; }
+  .zurueckzurapp { position: fixed; top: calc(12px + env(safe-area-inset-top)); right: clamp(14px, 4vw, 40px); z-index: 11; color: var(--matt); font-size: 16px; text-decoration: none; padding: 8px 12px; border-radius: 12px; background: rgba(33, 66, 59, .85); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .folie { transition: none; }
+    .radar span { animation: none; opacity: .5; }
+    .radar span:nth-child(1) { transform: scale(.4); } .radar span:nth-child(2) { transform: scale(.7); } .radar span:nth-child(3) { transform: scale(1); }
+  }
+</style>
+</head>
+<body>
+<a class="zurueckzurapp" href="./">Zur App</a>
+
+<main class="buehne" id="buehne">
+
+  <section class="folie titel" data-sprechen="Willkommen bei The Hunt. Ich erkläre euch jetzt alle Regeln, damit wir gleich direkt loslegen können.">
+    <div class="radar" aria-hidden="true"><span></span><span></span><span></span></div>
+    <h1>The<span>Hunt</span></h1>
+    <p class="matt">Spielanleitung. Tippe auf „Vorlesen“ oder wische zum Blättern.</p>
+  </section>
+
+  <section class="folie" data-sprechen="Das Prinzip ist einfach. Ein oder mehrere Spieler sind Schatten und fliehen. Alle anderen sind Jäger. Die Schatten müssen neunzig Minuten durchhalten, die Jäger müssen sie vorher fassen. Gespielt wird draußen, jeder mit seinem eigenen Handy.">
+    <h2>Die Idee</h2>
+    <div class="reihe">
+      <div class="karte rolle"><h3>🌑 Schatten</h3><p>Ein oder mehrere Spieler fliehen 90 Minuten lang. Ihr Standort wird regelmäßig verraten.</p></div>
+      <div class="karte rolle"><h3>🔎 Jäger</h3><p>Alle anderen. Sie folgen den Hinweisen der App und versuchen, die Schatten zu fassen.</p></div>
+    </div>
+  </section>
+
+  <section class="folie" data-sprechen="Vorher einmal einrichten. Öffnet den Link in Safari, tippt auf Teilen und dann auf Zum Home-Bildschirm. Startet The Hunt ab jetzt immer von dort, nur dann kommen Mitteilungen an. Beim ersten Start erlaubt ihr Mitteilungen und Standort. Stellt für die Runde die automatische Sperre auf Nie, schaltet Lautlos aus und kommt mit vollem Akku.">
+    <h2>Vorbereitung</h2>
+    <div class="reihe">
+      <div class="karte"><span class="nr">1</span><p>Link in Safari öffnen</p></div>
+      <div class="karte"><span class="nr">2</span><p>Teilen → „Zum Home-Bildschirm“</p></div>
+      <div class="karte"><span class="nr">3</span><p>Immer vom Home-Bildschirm starten</p></div>
+      <div class="karte"><span class="nr">4</span><p>Mitteilungen und Standort erlauben</p></div>
+      <div class="karte"><span class="nr">5</span><p>Automatische Sperre auf „Nie“</p></div>
+      <div class="karte"><span class="nr">6</span><p>Lautlos aus, Akku voll</p></div>
+    </div>
+  </section>
+
+  <section class="folie" data-sprechen="Alle geben denselben Spielcode ein, ihren Namen und ihre Rolle. Über den Knopf Einladen könnt ihr den Code auch einfach per Link verschicken. In der Lobby zeichnen wir das Spielgebiet: Zone zeichnen antippen, die Eckpunkte auf die Karte tippen, dann Zone fertig. Wenn alle da sind, startet ein Schatten das Spiel.">
+    <h2>Beitreten und Zone</h2>
+    <div class="reihe">
+      <div class="karte"><span class="nr">1</span><h3>Gleicher Spielcode</h3><p>Name und Rolle wählen. Mit „Einladen“ verschickst du den Code als Link.</p></div>
+      <div class="karte"><span class="nr">2</span><h3>Zone zeichnen</h3><p>„Zone zeichnen“, Eckpunkte auf die Karte tippen, dann „Zone fertig“.</p></div>
+      <div class="karte"><span class="nr">3</span><h3>Ein Schatten startet</h3><p>Sind alle in der Lobby, tippt ein Schatten auf „Spiel starten“.</p></div>
+    </div>
+  </section>
+
+  <section class="folie" data-sprechen="So läuft eine Runde ab. Nach dem Start haben die Schatten siebeneinhalb Minuten Vorsprung, dann kommt der erste Ping. Nach dreißig und nach sechzig Minuten gibt es jeweils ein Rätsel, und die Schatten sehen kurz, wo die Jäger stehen. Nach sechzig Minuten schrumpft die Zone auf achtzig Prozent, nach fünfundsiebzig Minuten auf sechzig Prozent. Nach neunzig Minuten ist Schluss.">
+    <h2>Ablauf</h2>
+    <div class="zeit">
+      <div><b>0′</b><h3>Start</h3><p>Die Schatten haben 7:30 Minuten Vorsprung.</p></div>
+      <div><b>7:30</b><h3>Erster Ping</h3><p>Danach alle 7:30 Minuten ein neuer.</p></div>
+      <div><b>30′</b><h3>Rätsel und Aufdecken</h3><p>Die Schatten sehen die Jäger einmal.</p></div>
+      <div><b>60′</b><h3>Rätsel, Aufdecken, Zone 80 %</h3><p>Die Zone schrumpft zum ersten Mal.</p></div>
+      <div><b>75′</b><h3>Zone 60 %</h3><p>Das Finale beginnt.</p></div>
+      <div><b>90′</b><h3>Ende</h3><p>Wer nicht gefasst wurde, gewinnt.</p></div>
+    </div>
+  </section>
+
+  <section class="folie" data-sprechen="Das Herzstück sind die Pings. Alle siebeneinhalb Minuten wird der Standort jedes Schattens an die Jäger verraten, insgesamt elf Mal. Gibt es mehrere Schatten, hat jeder seine eigene Farbe. Die Schatten werden eine Minute vorher gewarnt. Ältere Pings verblassen, über den Knopf Pings seht ihr alle bisherigen.">
+    <h2>Pings</h2>
+    <div class="zwei">
+      <div class="grosszahl" aria-label="alle 7 Minuten 30 Sekunden">7:30</div>
+      <div class="liste">
+        <p>Alle 7:30 Minuten sehen die Jäger, wo jeder Schatten gerade ist. 11 Pings pro Spiel.</p>
+        <p class="matt">Jeder Schatten hat seine eigene Farbe.</p>
+        <p class="matt">Die Schatten werden eine Minute vorher gewarnt.</p>
+        <p class="matt">Ältere Pings verblassen. Unter „Pings“ steht die ganze Liste.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="folie" data-sprechen="Nach dreißig und nach sechzig Minuten bekommen alle dasselbe Rätsel und haben drei Minuten Zeit. Passt auf, da sind Fangfragen dabei. Jeder Schatten, der richtig antwortet, bekommt seinen eigenen Joker: Er tippt einen Ort im Umkreis von einem Kilometer an, und sein nächster Ping zeigt diesen falschen Ort. Die Jäger bekommen nur dann einen Bonus-Ping, wenn wirklich alle richtig antworten. Einer von euch löst ihn für alle ein, und ihr seht sofort alle freien Schatten. Die werden dabei aber gewarnt.">
+    <h2>Rätsel</h2>
+    <p class="matt">Nach 30 und 60 Minuten. Alle bekommen dieselbe Frage und haben 3 Minuten Zeit. Achtung, Fangfragen!</p>
+    <div class="reihe">
+      <div class="karte"><h3>🌑 Joker</h3><p>Jeder Schatten, der richtig antwortet, setzt einen falschen Ping, höchstens 1 km entfernt. Er ersetzt seinen nächsten Ping.</p></div>
+      <div class="karte"><h3>🔎 Bonus-Ping</h3><p>Nur wenn alle Jäger richtig liegen. Einer löst ihn für alle ein: Ihr seht sofort alle freien Schatten. Sie werden gewarnt.</p></div>
+    </div>
+  </section>
+
+  <section class="folie" data-sprechen="Wer sieht was? Ihr Jäger seht euch die ganze Zeit gegenseitig und könnt euch absprechen. Die Schatten sehen euch nicht. Nur nach dreißig und sechzig Minuten bekommen sie eine einmalige Momentaufnahme, wo ihr gerade steht. Ihr werdet dabei gewarnt. Das ist ein guter Moment, die Richtung zu wechseln.">
+    <h2>Wer sieht was?</h2>
+    <div class="reihe">
+      <div class="karte"><h3>🔎 Jäger sehen</h3><p>Die Zone, alle Pings und die anderen Jäger, die ganze Zeit.</p></div>
+      <div class="karte"><h3>🌑 Schatten sehen</h3><p>Die Zone und ihre eigenen Pings. Die Jäger nur nach 30 und 60 Minuten, als Momentaufnahme.</p></div>
+    </div>
+    <p><span class="rot">Beim Aufdecken werden die Jäger gewarnt.</span> Danach lohnt es sich, die Richtung zu wechseln.</p>
+  </section>
+
+  <section class="folie" data-sprechen="Gespielt wird nur innerhalb der Zone, und die App zeigt euch, ob ihr drin seid. Wer rausläuft, wird bestraft. Ein Schatten außerhalb der Zone ist für die Jäger live auf der Karte zu sehen, und das noch eine Minute, nachdem er zurück ist. Ein Jäger außerhalb der Zone sieht keine Pings und keine anderen Jäger mehr und kann nicht funken. Achtet besonders auf die Verkleinerungen nach sechzig und fünfundsiebzig Minuten.">
+    <h2>Zone und Strafen</h2>
+    <div class="zwei">
+      <svg class="zonebild" viewBox="0 0 400 360" role="img" aria-label="Zone: gestrichelt die ursprüngliche Grenze, innen die Stufen 80 und 60 Prozent">
+        <polygon points="50,80 330,40 370,240 190,330 40,250" fill="none" stroke="#5b8cf5" stroke-width="4" stroke-dasharray="12 12"/>
+        <polygon points="86,104 310,72 342,232 198,304 78,240" fill="none" stroke="#5b8cf5" stroke-width="3" opacity=".7"/>
+        <polygon points="122,128 290,104 314,224 206,278 116,230" fill="#2563eb" fill-opacity=".25" stroke="#5b8cf5" stroke-width="5"/>
+        <circle cx="196" cy="188" r="8" fill="#e0482f"/>
+      </svg>
+      <div class="liste">
+        <div class="karte"><h3>🌑 Schatten draußen</h3><p>Die Jäger sehen dich live, bis 1 Minute nach deiner Rückkehr.</p></div>
+        <div class="karte"><h3>🔎 Jäger draußen</h3><p>Keine Pings, keine anderen Jäger, kein Funk.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="folie" data-sprechen="Über den Chat-Knopf schreibt ihr euch Nachrichten. Jäger schreiben unter sich, und wenn es mehrere Schatten gibt, haben die ihren eigenen Chat. Für die Jäger gibt es außerdem Funk: Knopf gedrückt halten, sprechen, loslassen. Bei allen anderen Jägern wird der Funkspruch sofort abgespielt. Wer außerhalb der Zone ist, hört und sendet nichts.">
+    <h2>Chat und Funk</h2>
+    <div class="reihe">
+      <div class="karte"><h3>💬 Chat</h3><p>Jäger schreiben unter sich. Mehrere Schatten haben ihren eigenen Chat.</p></div>
+      <div class="karte"><h3>🎙️ Funk für Jäger</h3><p>Gedrückt halten, sprechen, loslassen. Spielt bei allen Jägern sofort ab.</p></div>
+    </div>
+  </section>
+
+  <section class="folie" id="folieFang" data-sprechen="">
+    <h2>Fangen</h2>
+    <div class="reihe">
+      <div class="karte"><span class="nr">1</span><h3>Erwischt</h3><p id="fangText"></p></div>
+      <div class="karte"><span class="nr">2</span><h3>„Gefasst!“</h3><p>Der Jäger tippt auf „Gefasst!“ und wählt den Schatten aus.</p></div>
+      <div class="karte"><span class="nr">3</span><h3>Bestätigen</h3><p>Der Schatten bestätigt auf seinem Handy und ist raus.</p></div>
+    </div>
+    <p class="matt">Das Spiel läuft weiter, bis alle Schatten gefasst sind oder die Zeit um ist.</p>
+  </section>
+
+  <section class="folie" data-sprechen="Die Jäger gewinnen, wenn sie alle Schatten innerhalb von neunzig Minuten fassen. Jeder Schatten, der bis zum Ende frei bleibt, gewinnt. Danach könnt ihr euch die Statistik anschauen, mit Kilometern, Tempo und der knappsten Begegnung, und alle Routen gemeinsam abspielen.">
+    <h2>Wer gewinnt?</h2>
+    <div class="reihe">
+      <div class="karte rolle"><h3>🔎 Jäger</h3><p>wenn sie alle Schatten innerhalb von 90 Minuten fassen.</p></div>
+      <div class="karte rolle"><h3>🌑 Schatten</h3><p>jeder, der bis zum Ende frei bleibt.</p></div>
+    </div>
+    <p class="matt">Danach: Statistik mit Kilometern, Tempo und knappster Begegnung, und alle Routen als Wiederholung.</p>
+  </section>
+
+  <section class="folie" data-sprechen="Noch ein paar Tipps. Lasst die App offen, denn bei gesperrtem Bildschirm laufen GPS, Töne und Funk nicht weiter. Kommt eine Mitteilung, entsperrt das Handy und öffnet The Hunt. Schatten, für euch wichtig: Ist euer Handy beim Ping gesperrt, wird euer letzter bekannter Standort verraten. Und packt eine Powerbank ein.">
+    <h2>Tipps fürs Handy</h2>
+    <div class="reihe">
+      <div class="karte"><h3>App offen lassen</h3><p>Bei gesperrtem Bildschirm laufen GPS, Töne und Funk nicht weiter.</p></div>
+      <div class="karte"><h3>Mitteilung? Öffnen!</h3><p>Entsperren und The Hunt öffnen.</p></div>
+      <div class="karte"><h3>Schatten aufgepasst</h3><p>Gesperrtes Handy beim Ping: Dein letzter bekannter Standort wird verraten.</p></div>
+      <div class="karte"><h3>Powerbank</h3><p>GPS und heller Bildschirm kosten viel Akku.</p></div>
+    </div>
+  </section>
+
+  <section class="folie titel" data-sprechen="Das war's. Viel Glück. Die Schatten laufen schon.">
+    <div class="radar" aria-hidden="true"><span></span><span></span><span></span></div>
+    <h1>Viel<span>Glück.</span></h1>
+    <p class="matt">Die Schatten laufen schon.</p>
+  </section>
+
+</main>
+
+<nav class="leiste" aria-label="Steuerung">
+  <button id="zurueck" aria-label="Vorherige Folie">‹</button>
+  <button id="vorlesen">▶ Vorlesen</button>
+  <div class="fortschritt" id="fortschritt" aria-live="polite"></div>
+  <button id="weiter" aria-label="Nächste Folie">›</button>
+</nav>
+
+<script>
+// ---------------------------------------------------------------
+// Einstellungen
+// ---------------------------------------------------------------
+// Wann gilt ein Schatten als gefasst? Ein Verb, das in den Satz
+// „… wenn ein Jäger ihn ___“ passt, z. B. 'berührt' oder 'abklatscht'.
+const FANG_REGEL = 'berührt';
+const PAUSE_ZWISCHEN_FOLIEN_MS = 700;
+const SPRECHTEMPO = 1.0;
+// So spricht die deutsche Stimme „The Hunt“, falls es keine englische Stimme gibt
+const ENGLISCH_ERSATZ = 'Se Hant';
+
+// ---------------------------------------------------------------
+const $ = (id) => document.getElementById(id);
+$('fangText').textContent = `Ein Schatten ist erwischt, wenn ein Jäger ihn ${FANG_REGEL}.`;
+$('folieFang').dataset.sprechen = `Erwischt ist ein Schatten, wenn ein Jäger ihn ${FANG_REGEL}. Dann tippt der Jäger auf Gefasst und wählt aus, wen er erwischt hat. Der Schatten muss den Fang auf seinem Handy bestätigen und ist dann raus. Das Spiel läuft weiter, bis alle Schatten gefasst sind oder die Zeit um ist.`;
+
+const folien = [...document.querySelectorAll('.folie')];
+let index = 0, spielt = false, lauf = 0, stimme = null, stimmeEn = null;
+
+
+function zeige(i) {
+  index = Math.max(0, Math.min(folien.length - 1, i));
+  folien.forEach((f, n) => { f.classList.toggle('aktiv', n === index); f.setAttribute('aria-hidden', n === index ? 'false' : 'true'); });
+  $('fortschritt').textContent = `${index + 1} / ${folien.length}`;
+  $('zurueck').disabled = index === 0;
+  $('weiter').disabled = index === folien.length - 1;
+  folien[index].scrollTop = 0;
+  try { history.replaceState(null, '', '#' + (index + 1)); } catch (e) {}
+}
+
+// --- Vorlesen -------------------------------------------------
+const kannSprechen = 'speechSynthesis' in window;
+function stimmeWaehlen() {
+  if (!kannSprechen) return;
+  const alle = speechSynthesis.getVoices().filter(v => v.lang && v.lang.toLowerCase().startsWith('de'));
+  const rang = (v) => (/premium|enhanced|verbessert|natural|neural/i.test(v.name) ? 4 : 0)
+    + (/anna|helena|petra|markus|google/i.test(v.name) ? 2 : 0) + (v.localService ? 1 : 0);
+  stimme = alle.sort((a, b) => rang(b) - rang(a))[0] || null;
+  const en = speechSynthesis.getVoices().filter(v => v.lang && v.lang.toLowerCase().startsWith('en'));
+  const rangEn = (v) => rang(v) + (/en[-_](us|gb)/i.test(v.lang) ? 2 : 0) + (/samantha|daniel|karen|serena|google/i.test(v.name) ? 1 : 0);
+  stimmeEn = en.sort((a, b) => rangEn(b) - rangEn(a))[0] || null;
+}
+// Text in Abschnitte zerlegen: „The Hunt“ englisch, der Rest deutsch
+function abschnitte(text) {
+  const teile = [];
+  (text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [text]).forEach(satz => {
+    satz.split(/(The Hunt)/).forEach(stueck => {
+      if (!/[\p{L}\d]/u.test(stueck)) return; // reine Satzzeichen nicht einzeln vorlesen
+      if (stueck === 'The Hunt') teile.push(stimmeEn ? { text: 'The Hunt', en: true } : { text: ENGLISCH_ERSATZ, en: false });
+      else teile.push({ text: stueck.trim(), en: false });
+    });
+  });
+  return teile;
+}
+if (kannSprechen) { stimmeWaehlen(); speechSynthesis.addEventListener('voiceschanged', stimmeWaehlen); }
+
+// Folie in einzelnen Sätzen vorlesen (lange Texte brechen in manchen Browsern sonst ab)
+function folieVorlesen() {
+  const meinLauf = ++lauf;
+  speechSynthesis.cancel();
+  const text = folien[index].dataset.sprechen || '';
+  const saetze = abschnitte(text);
+  let n = 0, sicherung = null;
+  const naechster = () => {
+    clearTimeout(sicherung);
+    if (meinLauf !== lauf || !spielt) return;
+    if (n >= saetze.length) {
+      if (index < folien.length - 1) setTimeout(() => { if (meinLauf === lauf && spielt) { zeige(index + 1); folieVorlesen(); } }, PAUSE_ZWISCHEN_FOLIEN_MS);
+      else stoppen();
+      return;
+    }
+    const teil = saetze[n++], satz = teil.text;
+    const u = new SpeechSynthesisUtterance(satz);
+    u.lang = teil.en ? (stimmeEn.lang || 'en-US') : 'de-DE'; u.rate = SPRECHTEMPO;
+    if (teil.en) u.voice = stimmeEn; else if (stimme) u.voice = stimme;
+    u.onend = naechster;
+    u.onerror = naechster;
+    // Falls der Browser „fertig“ nicht meldet, trotzdem weitermachen
+    sicherung = setTimeout(naechster, 2500 + satz.length * 110 / SPRECHTEMPO);
+    speechSynthesis.speak(u);
+  };
+  naechster();
+}
+function starten() {
+  if (!kannSprechen) { $('vorlesen').textContent = 'Vorlesen nicht möglich'; return; }
+  spielt = true;
+  if (index === folien.length - 1) zeige(0);
+  $('vorlesen').textContent = '❚❚ Pause';
+  folieVorlesen();
+}
+function stoppen() {
+  spielt = false; lauf++;
+  if (kannSprechen) speechSynthesis.cancel();
+  $('vorlesen').textContent = '▶ Vorlesen';
+}
+
+// --- Bedienung ------------------------------------------------
+function blaettern(d) {
+  zeige(index + d);
+  if (spielt) folieVorlesen();
+}
+$('vorlesen').onclick = () => spielt ? stoppen() : starten();
+$('weiter').onclick = () => blaettern(1);
+$('zurueck').onclick = () => blaettern(-1);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight' || e.key === 'PageDown') blaettern(1);
+  else if (e.key === 'ArrowLeft' || e.key === 'PageUp') blaettern(-1);
+  else if (e.key === ' ' && e.target === document.body) { e.preventDefault(); spielt ? stoppen() : starten(); }
+});
+let wischX = null, wischY = null;
+$('buehne').addEventListener('touchstart', (e) => { wischX = e.touches[0].clientX; wischY = e.touches[0].clientY; }, { passive: true });
+$('buehne').addEventListener('touchend', (e) => {
+  if (wischX == null) return;
+  const dx = e.changedTouches[0].clientX - wischX, dy = e.changedTouches[0].clientY - wischY;
+  if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) blaettern(dx < 0 ? 1 : -1);
+  wischX = null;
+}, { passive: true });
+document.addEventListener('visibilitychange', () => { if (document.hidden && spielt) stoppen(); });
+
+zeige((parseInt(location.hash.slice(1), 10) || 1) - 1);
+</script>
+</body>
+</html>
