@@ -90,6 +90,21 @@
   .zeile { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; margin-top: 8px; }
   .zeile button { padding: 14px; border-radius: 14px; background: var(--hell); color: var(--text); font-weight: 700; }
   .zeile button.haupt { background: var(--signal); color: #fff; }
+  .funk { background: var(--wald); -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: none; }
+  .funk.an { background: var(--signal); }
+  .knoepfe button[hidden] { display: none; }
+  .chatliste { display: flex; flex-direction: column; gap: 8px; margin: 0 0 12px; max-height: 45vh; overflow: auto; }
+  .nachricht { background: var(--hell); border-radius: 14px; padding: 10px 12px; font-size: 16px; line-height: 1.35; align-self: flex-start; max-width: 85%; }
+  .nachricht.meine { background: #cfe0d3; align-self: flex-end; }
+  .nachricht small { display: block; color: var(--grau); font-size: 13px; margin-bottom: 2px; }
+  .nachricht button { background: var(--wald); color: var(--papier); border-radius: 10px; padding: 8px 12px; font-weight: 700; font-size: 15px; }
+  .chateingabe { display: flex; gap: 8px; }
+  .chateingabe input { flex: 1; min-width: 0; border: 2px solid var(--hell); border-radius: 14px; padding: 12px 14px; background: #fff; color: var(--text); }
+  .chateingabe button { background: var(--signal); color: #fff; border-radius: 14px; padding: 0 16px; font-weight: 700; }
+  .stat { display: grid; gap: 8px; margin: 0 0 14px; }
+  .stat div { background: var(--hell); border-radius: 14px; padding: 12px 14px; font-size: 16px; line-height: 1.4; }
+  .stat b.gross { font-size: 22px; }
+  .stat h3 { margin: 6px 0 0; font-size: 18px; }
   .liste { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 6px; }
   .liste button { width: 100%; display: flex; justify-content: space-between; gap: 10px; padding: 12px 14px; border-radius: 12px; background: var(--hell); color: var(--text); font-size: 16px; }
 
@@ -105,7 +120,7 @@
 
 <main id="start">
   <h1>The<span>Hunt</span></h1>
-  <p class="lead">Einer flieht, alle anderen jagen. Gebt alle denselben Spielcode ein, um im selben Spiel zu landen.</p>
+  <p class="lead">Die Schatten fliehen, alle anderen jagen. Gebt alle denselben Spielcode ein, um im selben Spiel zu landen.</p>
   <div class="feld">
     <label for="name">Dein Name</label>
     <input id="name" autocomplete="nickname" placeholder="z. B. Lena" maxlength="20">
@@ -135,6 +150,10 @@
     <div id="infos"></div>
     <button id="pushKnopf" hidden></button>
     <div class="knoepfe" id="knoepfe"></div>
+    <div class="knoepfe" id="funkzeile">
+      <button id="chatKnopf" class="grau" hidden>💬 Chat</button>
+      <button id="funkKnopf" class="funk" hidden>🎙️ Halten zum Funken</button>
+    </div>
   </div>
 </section>
 
@@ -149,16 +168,19 @@ const SUPABASE_KEY = 'sb_publishable_d8Uxjl4pCXvfooQFijRBuw_UY6QfKE1';
 
 const FLUCHT = { name: 'Schatten', emoji: '🌑', der: 'der Schatten', Der: 'Der Schatten' };  // Name der fliehenden Person
 const SPIELDAUER_MIN = 90;      // Gesamtdauer ab Spielstart
-const VORSPRUNG_MIN = 10;       // Vorsprung, danach kommt der erste Ping
+const VORSPRUNG_MIN = 7.5;      // Vorsprung, danach kommt der erste Ping (7:30)
 const PING_ABSTAND_MIN = 7.5;   // 7:30 Minuten zwischen zwei Pings
 const RAETSEL_MIN = [30, 60];   // Zeitpunkte der Rätsel
 const RAETSEL_DAUER_S = 180;    // Zeit zum Antworten
 const AUFDECKEN_MIN = [30, 60]; // Zeitpunkte, an denen der Schatten die Jäger einmal sieht
-const SCHRUMPF_MIN = 60;        // Zeitpunkt, an dem die Zone schrumpft
-const SCHRUMPF_FAKTOR = 0.8;    // 0.8 = Zone wird auf 80 % Größe (ca. 64 % Fläche) verkleinert
+// Zone schrumpft um ihre Mitte: Faktor bezogen auf die ursprüngliche Größe (0.8 = 80 % Breite/Höhe)
+const SCHRUMPF = [{ min: 60, faktor: 0.8 }, { min: 75, faktor: 0.6 }];
+const STRAFE_S = 60;            // Schatten bleibt nach Rückkehr in die Zone so lange live sichtbar
+const FUNK_MAX_S = 30;          // Längste Funk-Nachricht
 const JOKER_RADIUS_M = 1000;    // Falscher Ping höchstens so weit von der echten Position
 const SYNC_S = 4;               // Abgleich mit dem Server
-const SPUR_S = 20;              // Wie oft die Route des Schattenes gespeichert wird
+const SPUR_S = 20;              // Wie oft die Route der Schatten gespeichert wird
+const SCHATTEN_FARBEN = ['#e0482f', '#9333ea', '#d97706', '#db2777', '#0d9488', '#4b5563']; // eine Farbe pro Schatten
 const JAEGER_TIMEOUT_S = 120;   // Jäger ohne Update gelten danach als offline
 
 const RAETSEL = [
@@ -259,10 +281,10 @@ function punktInPolygon([y, x], poly) {
   }
   return drin;
 }
-function geschrumpft(zone) {
+function geschrumpft(zone, faktor) {
   const cy = zone.reduce((a, p) => a + p[0], 0) / zone.length;
   const cx = zone.reduce((a, p) => a + p[1], 0) / zone.length;
-  return zone.map(([y, x]) => [cy + (y - cy) * SCHRUMPF_FAKTOR, cx + (x - cx) * SCHRUMPF_FAKTOR]);
+  return zone.map(([y, x]) => [cy + (y - cy) * faktor, cx + (x - cx) * faktor]);
 }
 function zufaelligeIndizes(anzahl, n) {
   const a = [...Array(anzahl).keys()];
@@ -300,8 +322,11 @@ const s = {
   pings: [], spieler: [], belohnungen: [], meineRunden: new Set(),
   ersterSync: true, gemeldet: new Set(), ausgewertet: new Set(),
   jokerModus: false, aufdeckung: null, modalTyp: null, raetselEnde: 0,
-  letzteSpur: 0, fangAbgelehnt: null, knopfSchluessel: '', pushVersteckt: false
+  letzteSpur: 0, fangAbgelehnt: null, knopfSchluessel: '', pushVersteckt: false,
+  chat: [], chatLetzteId: 0, chatGelesen: 0, strafeBis: 0, strafeAktiv: false, funkAn: false, funkGedrueckt: false
 };
+const meinKanal = () => istSchatten() ? 'schatten' : 'jaeger';
+const chatMoeglich = () => !istSchatten() || (mehrereSchatten() && !binGefasst());
 const istSchatten = () => s.rolle === 'schatten';
 
 function startMs() { return s.spiel && s.spiel.start ? Date.parse(s.spiel.start) : null; }
@@ -313,22 +338,44 @@ function phase() {
 }
 function pingZeit(k) { return startMs() + (VORSPRUNG_MIN + k * PING_ABSTAND_MIN) * MIN; }
 function naechsterPingNr() {
-  for (let k = 0; k < 1000; k++) { const t = pingZeit(k); if (t > endeMs()) return null; if (t > jetzt()) return k; }
+  for (let k = 0; k < 1000; k++) { const t = pingZeit(k); if (t >= endeMs()) return null; if (t > jetzt()) return k; }
   return null;
 }
 function faelligePingNrs() {
   const r = [];
-  for (let k = 0; k < 1000; k++) { const t = pingZeit(k); if (t > endeMs() || t > jetzt()) break; r.push(k); }
+  for (let k = 0; k < 1000; k++) { const t = pingZeit(k); if (t >= endeMs() || t > jetzt()) break; r.push(k); }
   return r;
 }
-function zoneSchrumpftSchon() { return phase() !== 'lobby' && startMs() && jetzt() >= startMs() + SCHRUMPF_MIN * MIN; }
-function aktuelleZone() { const z = s.zoneLokal; return (z.length >= 3 && zoneSchrumpftSchon()) ? geschrumpft(z) : z; }
+function zonenFaktor() {
+  if (phase() === 'lobby' || !startMs()) return 1;
+  let f = 1;
+  SCHRUMPF.forEach(st => { if (jetzt() >= startMs() + st.min * MIN) f = st.faktor; });
+  return f;
+}
+function aktuelleZone() { const z = s.zoneLokal, f = zonenFaktor(); return (z.length >= 3 && f < 1) ? geschrumpft(z, f) : z; }
+const hatZone = () => aktuelleZone().length >= 3;
+const binDraussen = () => phase() === 'laeuft' && hatZone() && s.position && !punktInPolygon(s.position, aktuelleZone());
+// Jäger außerhalb der Zone: keine Pings, keine anderen Jäger, kein Funk
+const jaegerGesperrt = () => !istSchatten() && binDraussen();
+const unterStrafe = (p) => p.rolle === 'schatten' && !p.gefasst && p.strafe_bis && Date.parse(p.strafe_bis) > jetzt();
+const vorsprungText = () => mmss(VORSPRUNG_MIN * MIN);
 function jaegerOnline() {
   return s.spieler.filter(p => p.rolle === 'jaeger' && Date.parse(p.aktualisiert) >= jetzt() - JAEGER_TIMEOUT_S * 1000);
 }
-const schattenDaten = () => s.spieler.find(p => p.rolle === 'schatten');
-const jokerVerfuegbar = () => s.belohnungen.find(b => b.rolle === 'schatten' && b.gewonnen && !b.eingeloest && b.fake_lat == null);
-const jokerGeplant = () => s.belohnungen.find(b => b.rolle === 'schatten' && b.gewonnen && !b.eingeloest && b.fake_lat != null);
+const alleSchatten = () => s.spieler.filter(p => p.rolle === 'schatten').sort((a, b) => a.name.localeCompare(b.name));
+const freieSchatten = () => alleSchatten().filter(p => !p.gefasst);
+const mehrereSchatten = () => alleSchatten().length > 1;
+const meinEintrag = () => s.spieler.find(p => p.name === s.name);
+const binGefasst = () => istSchatten() && !!(meinEintrag() && meinEintrag().gefasst);
+function farbe(name) {
+  const i = alleSchatten().findIndex(p => p.name === name);
+  return SCHATTEN_FARBEN[Math.max(0, i) % SCHATTEN_FARBEN.length];
+}
+const sichtbarePings = () => istSchatten() ? s.pings.filter(p => p.name === s.name) : s.pings;
+// „der Schatten“ oder „die Schatten“, je nach Anzahl
+const derSchatten = (gross) => mehrereSchatten() ? (gross ? 'Die Schatten' : 'die Schatten') : (gross ? 'Der Schatten' : 'der Schatten');
+const jokerVerfuegbar = () => s.belohnungen.find(b => b.rolle === 'schatten' && b.name === s.name && b.gewonnen && !b.eingeloest && b.fake_lat == null);
+const jokerGeplant = (name = s.name) => s.belohnungen.find(b => b.rolle === 'schatten' && b.name === name && b.gewonnen && !b.eingeloest && b.fake_lat != null);
 const bonusVerfuegbar = () => s.belohnungen.find(b => b.rolle === 'jaeger' && b.gewonnen && !b.eingeloest);
 
 // =====================================================================
@@ -371,6 +418,7 @@ function modal(html, typ) {
   $('modalInhalt').innerHTML = html;
   $('modal').hidden = false;
 }
+const modalUnwichtig = () => s.modalTyp == null || s.modalTyp === 'chat' || s.modalTyp === 'liste';
 function modalSchliessen() { $('modal').hidden = true; s.modalTyp = null; }
 function bestaetigen(titel, text, okText, fn) {
   modal(`<h2>${esc(titel)}</h2><p class="klein">${esc(text)}</p>
@@ -392,18 +440,26 @@ try {
   $('name').value = localStorage.getItem('hunt-name') || '';
   $('code').value = localStorage.getItem('hunt-code') || '';
 } catch (e) {}
+const einladung = new URLSearchParams(location.search).get('code');
+if (einladung) $('code').value = einladung;
 
-$('los').addEventListener('click', () => {
+$('los').addEventListener('click', async () => {
   const name = $('name').value.trim();
   const code = $('code').value.trim().toLowerCase();
   const fehler = $('startFehler');
+  if (!name) { fehler.textContent = 'Gib deinen Namen ein, damit die anderen dich erkennen.'; return; }
   if (!code) { fehler.textContent = 'Gib einen Spielcode ein.'; return; }
-  if (gewaehlteRolle === 'jaeger' && !name) { fehler.textContent = 'Gib deinen Namen ein, damit die anderen dich erkennen.'; return; }
-  if (gewaehlteRolle === 'jaeger' && name.toLowerCase() === FLUCHT.name.toLowerCase()) { fehler.textContent = 'Dieser Name ist für die fliehende Person reserviert.'; return; }
   if (!navigator.geolocation) { fehler.textContent = 'Dieser Browser kann keinen Standort liefern.'; return; }
+  // Jeder Name darf pro Spiel nur einmal vorkommen
+  try {
+    const da = await dbGet('spieler', { spiel: 'eq.' + code, name: 'eq.' + name, select: 'rolle,aktualisiert' });
+    if (da.length && da[0].rolle !== gewaehlteRolle && Date.parse(da[0].aktualisiert) > jetzt() - 10 * MIN) {
+      fehler.textContent = 'Diesen Namen gibt es in diesem Spiel schon. Nimm einen anderen.'; return;
+    }
+  } catch (e) {}
   try { localStorage.setItem('hunt-name', name); localStorage.setItem('hunt-code', code); } catch (e) {}
   s.rolle = gewaehlteRolle;
-  s.name = istSchatten() ? FLUCHT.name : name;
+  s.name = name;
   s.code = code;
   audioStarten();
   spielBeitreten();
@@ -443,23 +499,36 @@ function zeichneZone() {
 function pingName(p) {
   let n = p.nummer != null ? 'Ping ' + (p.nummer + 1) : 'Bonus-Ping';
   if (istSchatten() && p.art === 'fake') n += ' (Joker)';
+  if (p.art === 'zone') n = 'Zonen-Ping';
+  if (!istSchatten() && mehrereSchatten() && p.name) n = p.name + ' · ' + n;
   return n;
 }
 function zeichnePings() {
   pingLayer.clearLayers();
-  const liste = s.pings;
-  liste.forEach((p, i) => {
-    const neuester = i === liste.length - 1;
-    const op = neuester ? 1 : 0.3 + 0.5 * (i / Math.max(1, liste.length - 1));
-    L.circle([p.lat, p.lng], { radius: 100, color: '#e0482f', weight: neuester ? 3 : 1, opacity: op, fillOpacity: neuester ? 0.18 : 0.05, interactive: false }).addTo(pingLayer);
-    L.circleMarker([p.lat, p.lng], { radius: neuester ? 9 : 6, color: '#fff', weight: 2, fillColor: '#e0482f', fillOpacity: op })
-      .bindTooltip(pingName(p) + ' · ' + uhr(Date.parse(p.erstellt)), { permanent: neuester, direction: 'top', offset: [0, -8], className: 'name' })
-      .addTo(pingLayer);
+  if (jaegerGesperrt()) return;
+  const gruppen = {};
+  sichtbarePings().forEach(p => (gruppen[p.name || ''] = gruppen[p.name || ''] || []).push(p));
+  Object.entries(gruppen).forEach(([name, liste]) => {
+    const f = farbe(name);
+    liste.forEach((p, i) => {
+      const neuester = i === liste.length - 1;
+      const op = neuester ? 1 : 0.3 + 0.5 * (i / Math.max(1, liste.length - 1));
+      L.circle([p.lat, p.lng], { radius: 100, color: f, weight: neuester ? 3 : 1, opacity: op, fillOpacity: neuester ? 0.18 : 0.05, interactive: false }).addTo(pingLayer);
+      L.circleMarker([p.lat, p.lng], { radius: neuester ? 9 : 6, color: '#fff', weight: 2, fillColor: f, fillOpacity: op })
+        .bindTooltip(pingName(p) + ' · ' + uhr(Date.parse(p.erstellt)), { permanent: neuester, direction: 'top', offset: [0, -8], className: 'name' })
+        .addTo(pingLayer);
+    });
   });
 }
 function zeichneJaeger() {
   jaegerLayer.clearLayers();
-  if (istSchatten()) return; // Der Schatten sieht die Jäger nur beim Aufdecken
+  if (istSchatten() || jaegerGesperrt()) return; // Der Schatten sieht die Jäger nur beim Aufdecken
+  // Schatten außerhalb der Zone (oder kurz danach) sind live sichtbar
+  if (phase() === 'laeuft') s.spieler.filter(unterStrafe).forEach(p => {
+    L.circle([p.lat, p.lng], { radius: 40, color: farbe(p.name), weight: 3, fillOpacity: 0.25, interactive: false }).addTo(jaegerLayer);
+    L.circleMarker([p.lat, p.lng], { radius: 10, color: '#fff', weight: 3, fillColor: farbe(p.name), fillOpacity: 1 })
+      .bindTooltip(p.name + ' · LIVE', { permanent: true, direction: 'top', offset: [0, -10], className: 'name' }).addTo(jaegerLayer);
+  });
   jaegerOnline().filter(j => j.name !== s.name).forEach(j => {
     L.circleMarker([j.lat, j.lng], { radius: 8, color: '#fff', weight: 3, fillColor: '#2f6b4f', fillOpacity: 1 })
       .bindTooltip(j.name, { permanent: true, direction: 'top', offset: [0, -8], className: 'name' }).addTo(jaegerLayer);
@@ -514,16 +583,21 @@ async function sync() {
   syncLaeuft = true;
   try {
     if (s.position && phase() !== 'ende') {
-      await dbUpsert('spieler', { spiel: s.code, name: s.name, rolle: s.rolle, lat: s.position[0], lng: s.position[1], aktualisiert: iso() }, 'spiel,name');
+      const zeile = { spiel: s.code, name: s.name, rolle: s.rolle, lat: s.position[0], lng: s.position[1], aktualisiert: iso() };
+      if (istSchatten() && s.strafeBis > jetzt()) zeile.strafe_bis = iso(s.strafeBis);
+      await dbUpsert('spieler', zeile, 'spiel,name');
     }
-    const [spiele, spieler, pings, bel, meine] = await Promise.all([
+    const [spiele, spieler, pings, bel, meine, chat] = await Promise.all([
       dbGet('spiele', { code: 'eq.' + s.code }),
-      dbGet('spieler', { spiel: 'eq.' + s.code, select: 'name,rolle,lat,lng,aktualisiert' }),
-      dbGet('pings', { spiel: 'eq.' + s.code, order: 'erstellt.asc', select: 'id,nummer,art,lat,lng,erstellt' }),
+      dbGet('spieler', { spiel: 'eq.' + s.code, select: 'name,rolle,lat,lng,aktualisiert,gefasst,fang_von,strafe_bis' }),
+      dbGet('pings', { spiel: 'eq.' + s.code, order: 'erstellt.asc', select: 'id,nummer,art,name,lat,lng,erstellt' }),
       dbGet('belohnungen', { spiel: 'eq.' + s.code }),
-      dbGet('antworten', { spiel: 'eq.' + s.code, name: 'eq.' + s.name, select: 'runde' })
+      dbGet('antworten', { spiel: 'eq.' + s.code, name: 'eq.' + s.name, select: 'runde' }),
+      dbGet('chat', { spiel: 'eq.' + s.code, kanal: 'eq.' + meinKanal(), id: 'gt.' + s.chatLetzteId, order: 'id.asc', select: 'id,name,text,audio,erstellt' })
     ]);
+    neueNachrichten(chat);
     s.spiel = spiele[0] || null;
+    neueFaengeMelden(spieler);
     s.spieler = spieler;
     neuePingsMelden(pings);
     s.pings = pings;
@@ -536,9 +610,9 @@ async function sync() {
     }
     if (phase() === 'laeuft') {
       await spielLogik();
-      if (istSchatten() && s.position && jetzt() - s.letzteSpur > SPUR_S * 1000) {
+      if (!binGefasst() && s.position && jetzt() - s.letzteSpur > SPUR_S * 1000) {
         s.letzteSpur = jetzt();
-        await dbInsert('spur', { spiel: s.code, lat: s.position[0], lng: s.position[1] });
+        await dbInsert('spur', { spiel: s.code, name: s.name, rolle: s.rolle, lat: s.position[0], lng: s.position[1] });
       }
     }
     s.online = true;
@@ -555,21 +629,42 @@ async function sync() {
 function neuePingsMelden(neu) {
   if (s.ersterSync) return;
   const alt = new Set(s.pings.map(p => p.id));
-  neu.filter(p => !alt.has(p.id)).forEach(p => {
-    if (p.art === 'bonus') {
+  const frisch = neu.filter(p => !alt.has(p.id) && (!istSchatten() || p.name === s.name));
+  const gemeldet = new Set(); // Pings mehrerer Schatten zur selben Zeit nur einmal melden
+  frisch.forEach(p => {
+    const art = p.art === 'bonus' ? 'bonus' : p.art === 'zone' ? 'zone' + p.name : 'n' + p.nummer;
+    if (gemeldet.has(art)) return;
+    gemeldet.add(art);
+    if (p.art === 'zone') {
+      if (istSchatten()) toast('Du bist außerhalb der Zone – die Jäger sehen dich jetzt live!', true);
+      else toast(`${p.name} hat die Zone verlassen und ist live sichtbar!`);
+      ton(istSchatten() ? 440 : 880, 3);
+    } else if (p.art === 'bonus') {
       if (istSchatten()) { toast('Die Jäger haben einen Bonus-Ping eingesetzt – lauf!', true); ton(440, 3); }
       else { toast('Bonus-Ping: So sieht es gerade aus!'); ton(880, 2); }
     } else if (istSchatten() && p.art === 'fake') {
       toast('Dein Joker wurde als Ping gesendet'); ton(660, 1);
     } else {
-      toast(pingName(p) + ' ist da!', istSchatten()); ton(880, 2);
+      toast('Ping ' + (p.nummer + 1) + ' ist da!', istSchatten()); ton(880, 2);
     }
+  });
+}
+function neueFaengeMelden(neu) {
+  if (s.ersterSync) return;
+  const vorher = new Set(s.spieler.filter(p => p.gefasst).map(p => p.name));
+  const offen = neu.filter(p => p.rolle === 'schatten' && !p.gefasst).length;
+  neu.filter(p => p.rolle === 'schatten' && p.gefasst && !vorher.has(p.name)).forEach(p => {
+    if (p.name === s.name) toast('Du wurdest gefasst und bist raus.', true);
+    else toast(`${p.name} wurde gefasst!` + (offen ? ` Noch ${offen} Schatten frei.` : ''), istSchatten());
+    ton(istSchatten() ? 440 : 990, 2);
   });
 }
 function neueBelohnungenMelden(neu) {
   if (s.ersterSync) return;
-  const alt = new Set(s.belohnungen.map(b => b.runde + b.rolle));
-  neu.filter(b => b.rolle === s.rolle && !alt.has(b.runde + b.rolle)).forEach(b => {
+  const schl = (b) => b.runde + b.rolle + (b.name || '');
+  const alt = new Set(s.belohnungen.map(schl));
+  const meine = (b) => istSchatten() ? (b.rolle === 'schatten' && b.name === s.name) : b.rolle === 'jaeger';
+  neu.filter(b => meine(b) && !alt.has(schl(b))).forEach(b => {
     if (istSchatten()) toast(b.gewonnen ? 'Richtig! Du hast einen Joker für einen falschen Ping.' : 'Leider falsch – kein Joker.', !b.gewonnen);
     else toast(b.gewonnen ? 'Alle richtig! Ihr habt einen Bonus-Ping.' : 'Nicht alle lagen richtig – kein Bonus-Ping.', !b.gewonnen);
     ton(b.gewonnen ? 990 : 330, 1);
@@ -579,17 +674,26 @@ function neueBelohnungenMelden(neu) {
 // Pings erzeugen und Rätsel auswerten – das erledigt jedes Handy, das gerade offen ist.
 async function spielLogik() {
   const st = startMs();
-  const vorhanden = new Set(s.pings.filter(p => p.nummer != null).map(p => p.nummer));
-  const schatten = schattenDaten();
+  const vorhanden = new Set(s.pings.filter(p => p.nummer != null).map(p => p.nummer + '|' + p.name));
   for (const k of faelligePingNrs()) {
-    if (vorhanden.has(k) || !schatten) continue;
-    const joker = jokerGeplant();
-    const daten = { spiel: s.code, nummer: k, art: joker ? 'fake' : 'normal',
-      lat: joker ? joker.fake_lat : schatten.lat, lng: joker ? joker.fake_lng : schatten.lng };
-    const ergebnis = await dbInsertIgnorieren('pings', daten, 'spiel,nummer');
-    if (joker && ergebnis && ergebnis.length) {
-      await dbPatch('belohnungen', { spiel: 'eq.' + s.code, runde: 'eq.' + joker.runde, rolle: 'eq.schatten' }, { eingeloest: true });
+    // Jeder Schatten, der zum Ping-Zeitpunkt noch frei war, bekommt einen eigenen Ping
+    for (const sch of alleSchatten()) {
+      if (vorhanden.has(k + '|' + sch.name)) continue;
+      if (sch.gefasst && Date.parse(sch.gefasst) <= pingZeit(k)) continue;
+      const joker = jokerGeplant(sch.name);
+      const daten = { spiel: s.code, nummer: k, name: sch.name, art: joker ? 'fake' : 'normal',
+        lat: joker ? joker.fake_lat : sch.lat, lng: joker ? joker.fake_lng : sch.lng };
+      const ergebnis = await dbInsertIgnorieren('pings', daten, 'spiel,nummer,name');
+      if (joker && ergebnis && ergebnis.length) {
+        await dbPatch('belohnungen', { spiel: 'eq.' + s.code, runde: 'eq.' + joker.runde, rolle: 'eq.schatten', name: 'eq.' + sch.name }, { eingeloest: true });
+      }
     }
+  }
+  // Alle Schatten gefasst? Dann ist das Spiel vorbei
+  const schatten = alleSchatten();
+  if (schatten.length && schatten.every(p => p.gefasst)) {
+    const letzter = Math.max(...schatten.map(p => Date.parse(p.gefasst)));
+    await dbPatch('spiele', { code: 'eq.' + s.code, status: 'eq.laeuft' }, { status: 'gefasst', ende: iso(letzter) });
   }
   for (let i = 0; i < RAETSEL_MIN.length; i++) {
     const t0 = st + RAETSEL_MIN[i] * MIN, t1 = t0 + RAETSEL_DAUER_S * 1000;
@@ -600,11 +704,12 @@ async function spielLogik() {
       dbGet('spieler', { spiel: 'eq.' + s.code, rolle: 'eq.jaeger', aktualisiert: 'gte.' + iso(t0 - JAEGER_TIMEOUT_S * 1000), select: 'name' })
     ]);
     const jaegerOk = jaeger.length > 0 && jaeger.every(j => antworten.some(a => a.name === j.name && a.richtig));
-    const schattenOk = antworten.some(a => a.rolle === 'schatten' && a.richtig);
-    await dbInsertIgnorieren('belohnungen', [
-      { spiel: s.code, runde: i, rolle: 'jaeger', gewonnen: jaegerOk },
-      { spiel: s.code, runde: i, rolle: 'schatten', gewonnen: schattenOk }
-    ], 'spiel,runde,rolle');
+    // Jeder Schatten, der beim Rätsel noch frei war, bekommt bei richtiger Antwort seinen eigenen Joker
+    const zeilen = [{ spiel: s.code, runde: i, rolle: 'jaeger', name: '', gewonnen: jaegerOk }];
+    alleSchatten().filter(p => !p.gefasst || Date.parse(p.gefasst) > t0).forEach(p => {
+      zeilen.push({ spiel: s.code, runde: i, rolle: 'schatten', name: p.name, gewonnen: antworten.some(a => a.name === p.name && a.richtig) });
+    });
+    await dbInsertIgnorieren('belohnungen', zeilen, 'spiel,runde,rolle,name');
   }
 }
 
@@ -621,20 +726,22 @@ function tick() {
   const ph = phase();
   if (ph === 'laeuft') {
     const st = startMs();
-    einmal('start', st, () => { toast(istSchatten() ? `Los! Du hast ${VORSPRUNG_MIN} Minuten Vorsprung.` : `Das Spiel läuft – ${FLUCHT.der} hat ${VORSPRUNG_MIN} Minuten Vorsprung.`); ton(660, 2); });
+    einmal('start', st, () => { toast(istSchatten() ? `Los! Du hast ${vorsprungText()} Minuten Vorsprung.` : `Das Spiel läuft – ${derSchatten(false)} ${mehrereSchatten() ? 'haben' : 'hat'} ${vorsprungText()} Minuten Vorsprung.`); ton(660, 2); });
     einmal('jagd', st + VORSPRUNG_MIN * MIN, () => { toast('Die Jagd beginnt!', true); ton(880, 3); });
-    if (istSchatten()) {
+    if (istSchatten() && !binGefasst()) {
       const k = naechsterPingNr();
       if (k != null) einmal('warn' + k, pingZeit(k) - MIN, () => { toast('Achtung: Ping in 1 Minute!', true); ton(660, 2); });
     }
     RAETSEL_MIN.forEach((m, i) => {
       const t0 = st + m * MIN, t1 = t0 + RAETSEL_DAUER_S * 1000;
-      if (jetzt() >= t0 && jetzt() < t1 && !s.meineRunden.has(i) && s.modalTyp == null) raetselZeigen(i, t1);
+      if (jetzt() >= t0 && jetzt() < t1 && !s.meineRunden.has(i) && !binGefasst() && modalUnwichtig()) raetselZeigen(i, t1);
     });
     AUFDECKEN_MIN.forEach((m, i) => einmal('auf' + i, st + m * MIN, aufdecken));
-    einmal('schrumpf', st + SCHRUMPF_MIN * MIN, () => { toast('Die Zone schrumpft!', true); ton(550, 2); zeichneZone(); });
-    if (istSchatten() && s.spiel.fang_von && s.spiel.fang_von !== s.fangAbgelehnt && s.modalTyp == null) fangBestaetigen(s.spiel.fang_von);
-    if (!s.spiel.fang_von) s.fangAbgelehnt = null;
+    SCHRUMPF.forEach((z, i) => einmal('schrumpf' + i, st + z.min * MIN, () => { toast(`Die Zone schrumpft auf ${Math.round(z.faktor * 100)} %!`, true); ton(550, 2); zeichneZone(); }));
+    zonenStrafe();
+    const meiner = meinEintrag();
+    if (istSchatten() && meiner && !meiner.gefasst && meiner.fang_von && meiner.fang_von !== s.fangAbgelehnt && modalUnwichtig()) fangBestaetigen(meiner.fang_von);
+    if (meiner && !meiner.fang_von) s.fangAbgelehnt = null;
   }
   if (ph === 'ende') {
     if (s.spiel.status === 'laeuft' && !s.gemeldet.has('endePatch')) {
@@ -650,13 +757,14 @@ function tick() {
 }
 
 function aufdecken() {
+  if (binGefasst()) return;
   if (istSchatten()) {
     s.aufdeckung = { zeit: jetzt(), liste: jaegerOnline() };
     zeichneAufdeckung();
     toast('Jäger aufgedeckt! So standen sie gerade.', false);
     ton(990, 2);
   } else {
-    toast(`${FLUCHT.Der} hat eure Positionen gerade gesehen!`, true);
+    toast(`${derSchatten(true)} ${mehrereSchatten() ? 'haben' : 'hat'} eure Positionen gerade gesehen!`, true);
     ton(440, 2);
   }
 }
@@ -670,7 +778,7 @@ function raetselZeigen(i, t1) {
   s.raetselEnde = t1;
   ton(880, 2);
   const erklaerung = istSchatten()
-    ? 'Richtig beantwortet bekommst du einen Joker: Du darfst einen falschen Ping setzen.'
+    ? 'Richtig beantwortet bekommst du deinen eigenen Joker: Du darfst einen falschen Ping setzen.'
     : 'Nur wenn alle Jäger richtig antworten, bekommt ihr einen Bonus-Ping.';
   modal(`<h2>Rätsel ${i + 1}</h2><p class="frage">${esc(r.frage)}</p>
     <p class="klein">${erklaerung} Noch <b id="rRest">${mmss(t1 - jetzt())}</b>.</p>
@@ -709,12 +817,16 @@ async function zoneHochladen() {
 
 function spielStarten() {
   const ohneZone = s.zoneLokal.length < 3 ? 'Es gibt noch keine Zone. ' : '';
+  const n = alleSchatten().length;
+  const wer = n > 1 ? `Ihr ${n} Schatten bekommt` : 'Du bekommst';
   bestaetigen('Spiel starten?',
-    `${ohneZone}Du bekommst ${VORSPRUNG_MIN} Minuten Vorsprung, danach gibt es alle ${mmss(PING_ABSTAND_MIN * MIN)} Minuten einen Ping. Das Spiel dauert ${SPIELDAUER_MIN} Minuten.`,
+    `${ohneZone}${wer} ${vorsprungText()} Minuten Vorsprung, danach gibt es alle ${mmss(PING_ABSTAND_MIN * MIN)} Minuten einen Ping. Das Spiel dauert ${SPIELDAUER_MIN} Minuten. Sind alle Schatten in der Lobby?`,
     'Los geht’s', async () => {
       try {
         const filter = { spiel: 'eq.' + s.code };
-        await Promise.all(['pings', 'antworten', 'belohnungen', 'spur'].map(t => dbDelete(t, filter)));
+        await Promise.all(['pings', 'antworten', 'belohnungen', 'spur', 'chat'].map(t => dbDelete(t, filter)));
+        await dbPatch('spieler', filter, { gefasst: null, fang_von: null, strafe_bis: null });
+        s.chat = []; s.chatLetzteId = 0; s.chatGelesen = 0; s.strafeBis = 0; s.strafeAktiv = false;
         await dbPatch('spiele', { code: 'eq.' + s.code }, {
           start: iso(), status: 'laeuft', raetsel: zufaelligeIndizes(RAETSEL.length, RAETSEL_MIN.length), fang_von: null, ende: null
         });
@@ -725,9 +837,9 @@ function spielStarten() {
 }
 
 function pingListe() {
-  const liste = [...s.pings].reverse();
+  const liste = [...sichtbarePings()].reverse();
   modal(`<h2>Pings</h2>` + (liste.length
-    ? `<ul class="liste">${liste.map(p => `<li><button data-id="${p.id}"><b>${esc(pingName(p))}</b><span>${uhr(Date.parse(p.erstellt))}</span></button></li>`).join('')}</ul>`
+    ? `<ul class="liste">${liste.map(p => `<li><button data-id="${p.id}"><b style="color:${farbe(p.name)}">${esc(pingName(p))}</b><span>${uhr(Date.parse(p.erstellt))}</span></button></li>`).join('')}</ul>`
     : '<p class="klein">Noch keine Pings.</p>') + `<div class="zeile"><button id="mZu">Schließen</button></div>`, 'liste');
   document.querySelectorAll('.liste button').forEach(b => b.onclick = () => {
     const p = s.pings.find(x => String(x.id) === b.dataset.id);
@@ -749,7 +861,7 @@ async function jokerSetzen(latlng) {
   if (!s.position) { toast('Warte auf dein GPS-Signal', true); return; }
   if (abstandM(s.position, [latlng.lat, latlng.lng]) > JOKER_RADIUS_M) { toast(`Zu weit weg – höchstens ${JOKER_RADIUS_M / 1000} km von dir`, true); return; }
   try {
-    await dbPatch('belohnungen', { spiel: 'eq.' + s.code, runde: 'eq.' + j.runde, rolle: 'eq.schatten', eingeloest: 'is.false' }, { fake_lat: latlng.lat, fake_lng: latlng.lng });
+    await dbPatch('belohnungen', { spiel: 'eq.' + s.code, runde: 'eq.' + j.runde, rolle: 'eq.schatten', name: 'eq.' + s.name, eingeloest: 'is.false' }, { fake_lat: latlng.lat, fake_lng: latlng.lng });
     s.jokerModus = false; hinweis(null);
     toast('Joker gesetzt – der nächste Ping zeigt diesen Ort');
     await sync();
@@ -757,74 +869,124 @@ async function jokerSetzen(latlng) {
 }
 
 function bonusPing() {
-  bestaetigen('Bonus-Ping einsetzen?', `Ihr seht sofort, wo ${FLUCHT.der} gerade ist. Der Bonus ist dann für alle Jäger verbraucht, und ${FLUCHT.der} wird gewarnt.`, 'Einsetzen', async () => {
-    const b = bonusVerfuegbar(), schatten = schattenDaten();
+  const wer = derSchatten(false);
+  bestaetigen('Bonus-Ping einsetzen?', `Ihr seht sofort, wo ${wer} gerade ${mehrereSchatten() ? 'sind' : 'ist'}. Der Bonus ist dann für alle Jäger verbraucht, und ${wer} ${mehrereSchatten() ? 'werden' : 'wird'} gewarnt.`, 'Einsetzen', async () => {
+    const b = bonusVerfuegbar(), frei = freieSchatten();
     if (!b) return;
-    if (!schatten) { toast(`${FLUCHT.Der} ist gerade nicht erreichbar`, true); return; }
+    if (!frei.length) { toast('Gerade ist kein Schatten erreichbar', true); return; }
     try {
       const r = await dbPatch('belohnungen', { spiel: 'eq.' + s.code, runde: 'eq.' + b.runde, rolle: 'eq.jaeger', eingeloest: 'is.false' }, { eingeloest: true });
       if (!r || !r.length) { toast('Ein anderer Jäger war schneller'); return; }
-      await dbInsert('pings', { spiel: s.code, art: 'bonus', lat: schatten.lat, lng: schatten.lng });
+      await dbInsert('pings', frei.map(p => ({ spiel: s.code, art: 'bonus', name: p.name, lat: p.lat, lng: p.lng })));
       await sync();
     } catch (e) { toast('Bonus-Ping fehlgeschlagen – keine Verbindung', true); }
   });
 }
 
 function gefasstMelden() {
-  bestaetigen(`${FLUCHT.name} gefasst?`, `${FLUCHT.Der} muss den Fang auf dem eigenen Handy bestätigen.`, 'Melden', async () => {
-    try { await dbPatch('spiele', { code: 'eq.' + s.code }, { fang_von: s.name }); toast(`Gemeldet – ${FLUCHT.der} muss bestätigen`); }
-    catch (e) { toast('Meldung fehlgeschlagen – keine Verbindung', true); }
-  });
+  const frei = freieSchatten();
+  if (!frei.length) { toast('Es ist kein Schatten mehr frei'); return; }
+  if (frei.length === 1) { fangMelden(frei[0].name); return; }
+  modal(`<h2>Wen habt ihr gefasst?</h2><p class="klein">Der Schatten muss den Fang auf dem eigenen Handy bestätigen.</p>
+    <ul class="liste">${frei.map(p => `<li><button data-name="${esc(p.name)}"><b style="color:${farbe(p.name)}">${FLUCHT.emoji} ${esc(p.name)}</b></button></li>`).join('')}</ul>
+    <div class="zeile"><button id="mZu">Abbrechen</button></div>`, 'frage');
+  document.querySelectorAll('.liste button').forEach(b => b.onclick = () => { modalSchliessen(); fangSenden(b.dataset.name); });
+  $('mZu').onclick = modalSchliessen;
 }
+function fangMelden(name) {
+  bestaetigen(`${name} gefasst?`, `${name} muss den Fang auf dem eigenen Handy bestätigen.`, 'Melden', () => fangSenden(name));
+}
+async function fangSenden(name) {
+  try { await dbPatch('spieler', { spiel: 'eq.' + s.code, name: 'eq.' + name }, { fang_von: s.name }); toast(`Gemeldet – ${name} muss bestätigen`); }
+  catch (e) { toast('Meldung fehlgeschlagen – keine Verbindung', true); }
+}
+function letzterFreierSchatten() { return freieSchatten().length <= 1; }
 function gefasstSchatten() {
-  bestaetigen('Wurdest du gefasst?', 'Damit endet das Spiel und die Jäger gewinnen.', 'Ja, gefasst', spielBeenden);
+  bestaetigen('Wurdest du gefasst?', letzterFreierSchatten()
+    ? 'Du bist der letzte freie Schatten – damit endet das Spiel und die Jäger gewinnen.'
+    : 'Damit bist du raus. Das Spiel läuft weiter, bis alle Schatten gefasst sind.', 'Ja, gefasst', ichBinGefasst);
 }
 function fangBestaetigen(von) {
   ton(440, 3);
   modal(`<h2>Gefasst?</h2><p class="klein">${esc(von)} sagt, dich erwischt zu haben. Stimmt das?</p>
     <div class="zeile"><button id="mNein">Nein</button><button class="haupt" id="mJa">Ja, gefasst</button></div>`, 'fang');
-  $('mJa').onclick = () => { modalSchliessen(); spielBeenden(); };
+  $('mJa').onclick = () => { modalSchliessen(); ichBinGefasst(); };
   $('mNein').onclick = async () => {
     modalSchliessen(); s.fangAbgelehnt = von;
-    try { await dbPatch('spiele', { code: 'eq.' + s.code }, { fang_von: null }); } catch (e) {}
+    try { await dbPatch('spieler', { spiel: 'eq.' + s.code, name: 'eq.' + s.name }, { fang_von: null }); } catch (e) {}
   };
 }
-async function spielBeenden() {
-  try { await dbPatch('spiele', { code: 'eq.' + s.code }, { status: 'gefasst', ende: iso() }); await sync(); }
-  catch (e) { toast('Keine Verbindung – nochmal versuchen', true); }
+async function ichBinGefasst() {
+  try {
+    await dbPatch('spieler', { spiel: 'eq.' + s.code, name: 'eq.' + s.name }, { gefasst: iso(), fang_von: null });
+    // War das der letzte freie Schatten? Dann endet das Spiel
+    const schatten = await dbGet('spieler', { spiel: 'eq.' + s.code, rolle: 'eq.schatten', select: 'name,gefasst' });
+    if (schatten.every(p => p.gefasst)) {
+      await dbPatch('spiele', { code: 'eq.' + s.code, status: 'eq.laeuft' }, { status: 'gefasst', ende: iso() });
+    }
+    s.jokerModus = false; hinweis(null);
+    await sync();
+  } catch (e) { toast('Keine Verbindung – nochmal versuchen', true); }
 }
 
 function endeZeigen() {
-  const gefasst = s.spiel.status === 'gefasst';
-  const minuten = gefasst && s.spiel.ende ? Math.round((Date.parse(s.spiel.ende) - startMs()) / MIN) : SPIELDAUER_MIN;
-  const gewonnen = istSchatten() ? !gefasst : gefasst;
+  const schatten = alleSchatten();
+  const gefangen = schatten.filter(p => p.gefasst);
+  const entkommen = schatten.filter(p => !p.gefasst);
+  const minuten = (p) => Math.round((Date.parse(p.gefasst) - startMs()) / MIN);
+  const gewonnen = istSchatten() ? !binGefasst() : entkommen.length === 0;
+  let text;
+  if (schatten.length <= 1) {
+    text = gefangen.length
+      ? `${FLUCHT.emoji} ${esc(gefangen[0].name)} wurde nach ${minuten(gefangen[0])} Minuten gefasst.`
+      : `${FLUCHT.emoji} ${esc(entkommen[0] ? entkommen[0].name : FLUCHT.Der)} ist entkommen – ${SPIELDAUER_MIN} Minuten ohne Fang.`;
+  } else {
+    text = (entkommen.length ? `Entkommen: <b>${entkommen.map(p => esc(p.name)).join(', ')}</b>. ` : 'Alle Schatten wurden gefasst. ')
+      + (gefangen.length ? 'Gefasst: ' + gefangen.map(p => `${esc(p.name)} (nach ${minuten(p)} Min.)`).join(', ') + '.' : '');
+  }
   ton(gewonnen ? 990 : 330, 3);
   modal(`<h2>${gewonnen ? 'Gewonnen!' : 'Verloren!'}</h2>
-    <p class="frage">${gefasst ? `${FLUCHT.emoji} ${FLUCHT.Der} wurde nach ${minuten} Minuten gefasst.` : `${FLUCHT.emoji} ${FLUCHT.Der} ist entkommen – ${SPIELDAUER_MIN} Minuten ohne Fang.`}</p>
-    <div class="zeile"><button id="mZu">Schließen</button><button class="haupt" id="mRoute">Route abspielen</button></div>`, 'ende');
+    <p class="frage">${text}</p>
+    <div class="zeile"><button id="mStat">Statistik</button><button class="haupt" id="mRoute">Route abspielen</button></div>
+    <div class="zeile"><button id="mZu">Schließen</button></div>`, 'ende');
   $('mZu').onclick = modalSchliessen;
+  $('mStat').onclick = statistikZeigen;
   $('mRoute').onclick = routeAbspielen;
 }
 
 async function routeAbspielen() {
   modalSchliessen();
   try {
-    const spur = await dbGet('spur', { spiel: 'eq.' + s.code, order: 'zeit.asc', select: 'lat,lng,zeit' });
+    const spur = await dbGet('spur', { spiel: 'eq.' + s.code, order: 'zeit.asc', select: 'name,rolle,lat,lng,zeit' });
     if (spur.length < 2) { toast('Zu wenig Daten für eine Route'); return; }
     spurLayer.clearLayers();
-    const punkte = spur.map(p => [p.lat, p.lng]);
-    map.fitBounds(L.latLngBounds(punkte).pad(0.2));
-    const linie = L.polyline([], { color: '#e0482f', weight: 4 }).addTo(spurLayer);
-    const kopf = L.circleMarker(punkte[0], { radius: 9, color: '#fff', weight: 3, fillColor: '#e0482f', fillOpacity: 1 })
-      .bindTooltip('', { permanent: true, direction: 'top', offset: [0, -10], className: 'name' }).addTo(spurLayer);
+    map.fitBounds(L.latLngBounds(spur.map(p => [p.lat, p.lng])).pad(0.2));
+    const routen = {};
+    spur.forEach(p => (routen[p.name || ''] = routen[p.name || ''] || []).push(p));
+    const t0 = Date.parse(spur[0].zeit), t1 = Date.parse(spur[spur.length - 1].zeit);
+    const bahnen = Object.entries(routen).map(([name, pkte]) => {
+      const jaeger = pkte[0].rolle === 'jaeger';
+      const f = jaeger ? '#2f6b4f' : farbe(name);
+      return {
+        name, pkte,
+        linie: L.polyline([], { color: f, weight: jaeger ? 3 : 4, opacity: jaeger ? 0.75 : 1 }).addTo(spurLayer),
+        kopf: L.circleMarker([pkte[0].lat, pkte[0].lng], { radius: jaeger ? 7 : 9, color: '#fff', weight: 3, fillColor: f, fillOpacity: 1 })
+          .bindTooltip('', { permanent: true, direction: 'top', offset: [0, -10], className: 'name' }).addTo(spurLayer)
+      };
+    });
     const ruhig = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const dauer = ruhig ? 1 : 15000, beginn = performance.now();
     const schritt = (t) => {
       const f = Math.min(1, (t - beginn) / dauer);
-      const n = Math.max(1, Math.round(f * (punkte.length - 1)) + 1);
-      linie.setLatLngs(punkte.slice(0, n));
-      kopf.setLatLng(punkte[n - 1]);
-      kopf.setTooltipContent(FLUCHT.emoji + ' ' + uhr(Date.parse(spur[n - 1].zeit)));
+      const bis = t0 + f * (t1 - t0); // alle Routen laufen zeitgleich ab
+      bahnen.forEach(b => {
+        const sichtbar = b.pkte.filter(p => Date.parse(p.zeit) <= bis);
+        if (!sichtbar.length) return;
+        const letzter = sichtbar[sichtbar.length - 1];
+        b.linie.setLatLngs(sichtbar.map(p => [p.lat, p.lng]));
+        b.kopf.setLatLng([letzter.lat, letzter.lng]);
+        b.kopf.setTooltipContent((b.pkte[0].rolle === 'jaeger' ? '🔎 ' : FLUCHT.emoji + ' ') + esc(b.name || '') + ' · ' + uhr(Date.parse(letzter.zeit)));
+      });
       if (f < 1) requestAnimationFrame(schritt);
     };
     requestAnimationFrame(schritt);
@@ -832,16 +994,236 @@ async function routeAbspielen() {
 }
 
 // =====================================================================
+// Zonen-Strafe für Schatten
+// =====================================================================
+function zonenStrafe() {
+  if (!istSchatten() || binGefasst()) return;
+  if (binDraussen()) {
+    s.strafeBis = jetzt() + STRAFE_S * 1000;
+    if (!s.strafeAktiv) {
+      s.strafeAktiv = true;
+      dbInsert('pings', { spiel: s.code, art: 'zone', name: s.name, lat: s.position[0], lng: s.position[1] }).catch(() => {});
+      sync();
+    }
+  } else if (s.strafeAktiv && jetzt() >= s.strafeBis) {
+    s.strafeAktiv = false;
+    toast('Strafe vorbei – du bist wieder unsichtbar.');
+  }
+}
+
+// =====================================================================
+// Chat und Funk
+// =====================================================================
+function neueNachrichten(neu) {
+  if (!neu.length) return;
+  s.chatLetzteId = neu[neu.length - 1].id;
+  s.chat.push(...neu);
+  if (s.ersterSync) { s.chatGelesen = s.chatLetzteId; return; }
+  neu.filter(n => n.name !== s.name).forEach(n => {
+    if (n.audio) {
+      if (jaegerGesperrt()) return; // außerhalb der Zone hört man den Funk nicht
+      sprachAbspielen(n.audio);
+      toast(`🎙️ ${n.name} funkt…`);
+    } else if (s.modalTyp !== 'chat') {
+      toast(`💬 ${n.name}: ${n.text.slice(0, 80)}`);
+      ton(1200, 1);
+    }
+  });
+  if (s.modalTyp === 'chat') { s.chatGelesen = s.chatLetzteId; chatListeZeichnen(); }
+}
+function chatListeZeichnen() {
+  const box = $('chatListe');
+  if (!box) return;
+  box.innerHTML = s.chat.length ? s.chat.map(n => `<div class="nachricht${n.name === s.name ? ' meine' : ''}">
+      <small>${esc(n.name)} · ${uhr(Date.parse(n.erstellt))}</small>
+      ${n.audio ? `<button data-audio="${esc(n.audio)}">▶︎ Sprachnachricht</button>` : esc(n.text)}</div>`).join('')
+    : '<p class="klein">Noch keine Nachrichten.</p>';
+  box.querySelectorAll('button[data-audio]').forEach(b => b.onclick = () => {
+    if (jaegerGesperrt()) { toast('Außerhalb der Zone ist der Funk gesperrt', true); return; }
+    sprachAbspielen(b.dataset.audio);
+  });
+  box.scrollTop = box.scrollHeight;
+}
+function chatOeffnen() {
+  const titel = istSchatten() ? 'Chat der Schatten' : 'Chat der Jäger';
+  modal(`<h2>${titel}</h2><div class="chatliste" id="chatListe"></div>
+    <div class="chateingabe"><input id="chatText" maxlength="300" placeholder="Nachricht…" enterkeyhint="send"><button id="chatSenden">Senden</button></div>
+    <div class="zeile"><button id="mZu">Schließen</button></div>`, 'chat');
+  s.chatGelesen = s.chatLetzteId;
+  chatListeZeichnen();
+  const senden = async () => {
+    const text = $('chatText').value.trim();
+    if (!text) return;
+    $('chatText').value = '';
+    try { await dbInsert('chat', { spiel: s.code, name: s.name, rolle: s.rolle, kanal: meinKanal(), text }); await sync(); }
+    catch (e) { toast('Nachricht nicht gesendet – keine Verbindung', true); $('chatText').value = text; }
+  };
+  $('chatSenden').onclick = senden;
+  $('chatText').onkeydown = (e) => { if (e.key === 'Enter') senden(); };
+  $('mZu').onclick = modalSchliessen;
+  render();
+}
+
+// Funk: Sprachnachrichten nacheinander abspielen
+let funkKette = Promise.resolve();
+function sprachAbspielen(url) {
+  funkKette = funkKette.then(async () => {
+    try {
+      audioStarten();
+      const daten = await (await fetch(url)).arrayBuffer();
+      const puffer = await audio.decodeAudioData(daten);
+      await new Promise(fertig => {
+        const quelle = audio.createBufferSource();
+        quelle.buffer = puffer; quelle.connect(audio.destination);
+        quelle.onended = fertig; quelle.start();
+      });
+    } catch (e) { console.warn('Abspielen', e); toast('Sprachnachricht konnte nicht abgespielt werden', true); }
+  });
+}
+let funkStream = null, funkRec = null, funkTeile = [], funkBeginn = 0, funkTimer = null;
+async function funkDruecken(e) {
+  e.preventDefault();
+  if (funkRec || jaegerGesperrt()) return;
+  s.funkGedrueckt = true;
+  audioStarten();
+  try {
+    if (!funkStream) funkStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (err) { s.funkGedrueckt = false; toast('Mikrofon nicht erlaubt – in den Einstellungen freigeben', true); return; }
+  if (!s.funkGedrueckt) { toast('Mikrofon bereit – jetzt gedrückt halten und sprechen'); return; }
+  const typ = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'].find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
+  funkTeile = [];
+  funkRec = new MediaRecorder(funkStream, typ ? { mimeType: typ } : undefined);
+  funkRec.ondataavailable = (ev) => { if (ev.data.size) funkTeile.push(ev.data); };
+  funkRec.onstop = funkSenden;
+  funkRec.start();
+  funkBeginn = jetzt();
+  s.funkAn = true;
+  funkTimer = setTimeout(funkLoslassen, FUNK_MAX_S * 1000);
+  render();
+}
+function funkLoslassen() {
+  s.funkGedrueckt = false;
+  clearTimeout(funkTimer);
+  if (funkRec && funkRec.state === 'recording') funkRec.stop();
+}
+async function funkSenden() {
+  const rec = funkRec, dauer = jetzt() - funkBeginn;
+  funkRec = null; s.funkAn = false;
+  // Mikrofon wieder freigeben, damit der Ton normal über den Lautsprecher läuft
+  if (funkStream) { funkStream.getTracks().forEach(tr => tr.stop()); funkStream = null; }
+  render();
+  if (dauer < 700) { toast('Zu kurz – Knopf gedrückt halten, während du sprichst'); return; }
+  const typ = (rec && rec.mimeType) || 'audio/mp4';
+  const blob = new Blob(funkTeile, { type: typ });
+  const pfad = `${encodeURIComponent(s.code)}/${jetzt()}-${Math.random().toString(36).slice(2, 8)}.${typ.includes('webm') ? 'webm' : 'm4a'}`;
+  try {
+    const r = await fetch(`${SUPABASE_URL}/storage/v1/object/funk/${pfad}`, { method: 'POST', headers: { apikey: SUPABASE_KEY, 'Content-Type': typ.split(';')[0] }, body: blob });
+    if (!r.ok) throw new Error(r.status + ' ' + await r.text());
+    await dbInsert('chat', { spiel: s.code, name: s.name, rolle: s.rolle, kanal: meinKanal(), text: '', audio: `${SUPABASE_URL}/storage/v1/object/public/funk/${pfad}` });
+    toast('Funkspruch gesendet');
+    await sync();
+  } catch (e) { console.warn('Funk', e); toast('Funkspruch nicht gesendet – keine Verbindung', true); }
+}
+$('funkKnopf').addEventListener('pointerdown', funkDruecken);
+['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => $('funkKnopf').addEventListener(ev, funkLoslassen));
+$('funkKnopf').addEventListener('contextmenu', (e) => e.preventDefault());
+$('chatKnopf').addEventListener('click', chatOeffnen);
+
+function renderFunkzeile(ph) {
+  const chat = $('chatKnopf'), funk = $('funkKnopf');
+  chat.hidden = !chatMoeglich();
+  const ungelesen = s.chat.filter(n => n.id > s.chatGelesen && n.name !== s.name).length;
+  chat.textContent = ungelesen ? `💬 Chat (${ungelesen})` : '💬 Chat';
+  chat.className = ungelesen ? 'rot' : 'grau';
+  funk.hidden = istSchatten() || ph === 'ende';
+  const gesperrt = jaegerGesperrt();
+  funk.disabled = gesperrt;
+  funk.classList.toggle('an', s.funkAn);
+  funk.textContent = gesperrt ? '🎙️ Funk gesperrt' : s.funkAn ? `● ${Math.round((jetzt() - funkBeginn) / 1000)} s – loslassen` : '🎙️ Halten zum Funken';
+}
+
+// =====================================================================
+// Einladen und Statistik
+// =====================================================================
+async function einladen() {
+  const url = location.origin + location.pathname + '?code=' + encodeURIComponent(s.code);
+  try {
+    if (navigator.share) await navigator.share({ title: 'The Hunt', text: `Spiel mit bei The Hunt! Spielcode: ${s.code}`, url });
+    else { await navigator.clipboard.writeText(url); toast('Einladungslink kopiert'); }
+  } catch (e) { /* Teilen abgebrochen */ }
+}
+
+function streckeKm(pkte) {
+  let m = 0;
+  for (let i = 1; i < pkte.length; i++) {
+    const d = abstandM([pkte[i - 1].lat, pkte[i - 1].lng], [pkte[i].lat, pkte[i].lng]);
+    if (d > 10) m += d; // kleine GPS-Zitterer nicht mitzählen
+  }
+  return m / 1000;
+}
+const zahl = (x, n = 1) => x.toLocaleString('de-DE', { minimumFractionDigits: n, maximumFractionDigits: n });
+async function statistikZeigen() {
+  try {
+    const spur = await dbGet('spur', { spiel: 'eq.' + s.code, order: 'zeit.asc', select: 'name,rolle,lat,lng,zeit' });
+    const routen = {};
+    spur.forEach(p => (routen[p.name] = routen[p.name] || []).push(p));
+    const daten = Object.entries(routen).map(([name, pkte]) => {
+      const km = streckeKm(pkte);
+      const std = (Date.parse(pkte[pkte.length - 1].zeit) - Date.parse(pkte[0].zeit)) / 3600000;
+      return { name, rolle: pkte[0].rolle, pkte, km, tempo: std > 0.05 ? km / std : 0 };
+    });
+    const schatten = daten.filter(d => d.rolle !== 'jaeger'), jaeger = daten.filter(d => d.rolle === 'jaeger');
+    // Knappste Begegnung: kleinster Abstand Jäger–Schatten zur (ungefähr) gleichen Zeit
+    const knapp = (sch) => {
+      let best = null;
+      sch.pkte.forEach(a => jaeger.forEach(j => j.pkte.forEach(b => {
+        if (Math.abs(Date.parse(a.zeit) - Date.parse(b.zeit)) > 30000) return;
+        const d = abstandM([a.lat, a.lng], [b.lat, b.lng]);
+        if (!best || d < best.d) best = { d, wer: j.name, zeit: Date.parse(a.zeit) };
+      })));
+      return best;
+    };
+    const weitester = [...daten].sort((a, b) => b.km - a.km)[0];
+    const eintrag = (name) => s.spieler.find(p => p.name === name) || {};
+    let html = '<h2>Statistik</h2><div class="stat">';
+    if (weitester) html += `<div>🏅 Am weitesten gelaufen: <b>${esc(weitester.name)}</b> mit <b class="gross">${zahl(weitester.km, 2)} km</b></div>`;
+    html += '<h3>🌑 Schatten</h3>';
+    schatten.forEach(d => {
+      const e = eintrag(d.name), k = knapp(d);
+      const pings = s.pings.filter(p => p.name === d.name).length;
+      const status = e.gefasst ? `gefasst nach ${Math.round((Date.parse(e.gefasst) - startMs()) / MIN)} Min.` : 'entkommen';
+      html += `<div><b style="color:${farbe(d.name)}">${esc(d.name)}</b> · ${status}<br>
+        <b class="gross">${zahl(d.km, 2)} km</b> · ⌀ ${zahl(d.tempo)} km/h · ${pings} Pings`
+        + (k ? `<br>Knappste Begegnung: ${esc(k.wer)} auf <b>${Math.round(k.d)} m</b> (Minute ${Math.round((k.zeit - startMs()) / MIN)})` : '') + '</div>';
+    });
+    if (jaeger.length) {
+      html += '<h3>🔎 Jäger</h3>';
+      jaeger.sort((a, b) => b.km - a.km).forEach(d => {
+        html += `<div><b>${esc(d.name)}</b> · <b class="gross">${zahl(d.km, 2)} km</b> · ⌀ ${zahl(d.tempo)} km/h</div>`;
+      });
+    }
+    if (!daten.length) html += '<div>Für dieses Spiel wurden keine Routen gespeichert.</div>';
+    html += '</div><div class="zeile"><button id="mZu">Schließen</button><button class="haupt" id="mRoute">Route abspielen</button></div>';
+    modal(html, 'liste');
+    $('mZu').onclick = modalSchliessen;
+    $('mRoute').onclick = routeAbspielen;
+  } catch (e) { toast('Statistik konnte nicht geladen werden', true); }
+}
+
+// =====================================================================
 // Anzeige
 // =====================================================================
 function render() {
   const ph = phase();
-  $('wer').textContent = (istSchatten() ? FLUCHT.emoji + ' ' + FLUCHT.name : '🔎 ' + s.name) + ' · ' + s.code;
+  $('wer').textContent = (istSchatten() ? FLUCHT.emoji + ' ' : '🔎 ') + s.name + ' · ' + s.code;
   let gross = '–';
   const infos = [];
   if (ph === 'lobby') {
     gross = 'Lobby';
-    infos.push(istSchatten() ? 'Zeichne die Zone und starte, wenn alle da sind' : `Warte, bis ${FLUCHT.der} das Spiel startet`);
+    infos.push(istSchatten() ? 'Zeichne die Zone und starte, wenn alle da sind' : 'Warte, bis ein Schatten das Spiel startet');
+  } else if (ph === 'laeuft' && binGefasst()) {
+    gross = mmss(endeMs() - jetzt());
+    infos.push('Du wurdest gefasst – schau zu, bis das Spiel endet');
   } else if (ph === 'laeuft') {
     const vorsprungEnde = startMs() + VORSPRUNG_MIN * MIN;
     if (jetzt() < vorsprungEnde) {
@@ -856,13 +1238,21 @@ function render() {
     gross = 'Ende';
   }
   const anzahl = jaegerOnline().length;
+  const sch = alleSchatten().length, frei = freieSchatten().length;
+  if (ph === 'lobby') infos.push(sch + ' Schatten');
+  else if (sch) infos.push(frei === sch ? sch + ' Schatten frei' : `${frei} von ${sch} Schatten frei`);
   infos.push(anzahl === 1 ? '1 Jäger online' : anzahl + ' Jäger online');
 
   let html = infos.map(t => `<span>${esc(t)}</span>`).join('');
   const z = aktuelleZone();
-  if (s.position && z.length >= 3 && ph !== 'ende') {
-    html += punktInPolygon(s.position, z) ? '<span class="ok">In der Zone</span>' : '<span class="warn">Außerhalb der Zone!</span>';
+  if (s.position && z.length >= 3 && ph !== 'ende' && !binGefasst()) {
+    const drin = punktInPolygon(s.position, z);
+    if (drin && istSchatten() && s.strafeBis > jetzt() && ph === 'laeuft') html += `<span class="warn">Noch ${mmss(s.strafeBis - jetzt())} live sichtbar</span>`;
+    else if (drin) html += '<span class="ok">In der Zone</span>';
+    else if (ph !== 'laeuft') html += '<span class="warn">Außerhalb der Zone!</span>';
+    else html += istSchatten() ? '<span class="warn">Außerhalb der Zone – die Jäger sehen dich live!</span>' : '<span class="warn">Außerhalb der Zone – keine Pings, kein Funk!</span>';
   }
+  if (!istSchatten() && ph === 'laeuft') s.spieler.filter(unterStrafe).forEach(p => { html += `<span class="warn">${esc(p.name)} ist live sichtbar</span>`; });
   if (istSchatten() && jokerGeplant()) html += '<span class="ok">Joker bereit: nächster Ping ist falsch</span>';
   if (!istSchatten() && bonusVerfuegbar() && ph === 'laeuft') html += '<span class="ok">Bonus-Ping verfügbar</span>';
   if (s.gpsFehler) html += `<span class="warn">${esc(s.gpsFehler)}</span>`;
@@ -876,6 +1266,7 @@ function render() {
     else if ($('rRest')) $('rRest').textContent = mmss(s.raetselEnde - jetzt());
   }
   renderKnoepfe(ph);
+  renderFunkzeile(ph);
   renderPushKnopf();
 }
 
@@ -884,9 +1275,12 @@ function renderKnoepfe(ph) {
   if (ph === 'lobby') {
     knoepfe = [
       [s.zeichnen ? 'Zone fertig' : 'Zone zeichnen', 'blau' + (s.zeichnen ? ' aktiv' : ''), zoneUmschalten],
-      ['Zone löschen', 'grau', zoneLoeschen]
+      ['Zone löschen', 'grau', zoneLoeschen],
+      ['Einladen', 'grau', einladen]
     ];
     if (istSchatten()) knoepfe.push(['Spiel starten', 'rot', spielStarten, s.zeichnen]);
+  } else if (ph === 'laeuft' && binGefasst()) {
+    knoepfe = [['Pings', 'grau', pingListe]];
   } else if (ph === 'laeuft') {
     knoepfe = istSchatten()
       ? [['Pings', 'grau', pingListe],
@@ -896,7 +1290,7 @@ function renderKnoepfe(ph) {
          ['Bonus-Ping', 'blau', bonusPing, !bonusVerfuegbar()],
          ['Gefasst!', 'rot', gefasstMelden]];
   } else {
-    knoepfe = [['Pings', 'grau', pingListe], ['Route', 'blau', routeAbspielen], ['Neues Spiel', 'rot', () => location.reload()]];
+    knoepfe = [['Statistik', 'grau', statistikZeigen], ['Route', 'blau', routeAbspielen], ['Neues Spiel', 'rot', () => location.reload()]];
   }
   const schluessel = JSON.stringify(knoepfe.map(k => [k[0], k[1], !!k[3]]));
   if (schluessel === s.knopfSchluessel) return;
@@ -927,6 +1321,7 @@ async function spielBeitreten() {
   if (phase() !== 'lobby') {
     const st = startMs();
     ['start'].forEach(k => s.gemeldet.add(k));
+    SCHRUMPF.forEach((z, i) => { if (jetzt() > st + z.min * MIN + 60000) s.gemeldet.add('schrumpf' + i); });
     if (jetzt() > st + VORSPRUNG_MIN * MIN) s.gemeldet.add('jagd');
   }
   setInterval(sync, SYNC_S * 1000);
